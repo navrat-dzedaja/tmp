@@ -1,0 +1,25 @@
+[Unit]
+Description=YouTube Music NAS Downloader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Change these paths/users to match your NAS.
+User=media
+Group=media
+WorkingDirectory=/srv/ytmd
+Environment=YTMD_HOST=0.0.0.0
+Environment=YTMD_PORT=8787
+Environment=YTMD_OUTPUT_DIR=/srv/media/music/youtube
+Environment=YTMD_AUDIO_FORMAT=mp3
+# Set a real secret here and keep it in sync with the userscript.
+Environment=YTMD_API_KEY=change-me
+# Uncomment if you need cookies for age-gated / members-only content.
+# Environment=YTMD_COOKIES_FILE=/srv/ytmd/cookies.txt
+ExecStart=/usr/bin/python3 /srv/ytmd/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
