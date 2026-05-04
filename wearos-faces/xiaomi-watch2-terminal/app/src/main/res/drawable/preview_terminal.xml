@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Static vector preview shown in the watch face picker.
+    Mimics the terminal layout at a glance: black bg, green clock text,
+    separator lines, and a grid of metric blocks.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="466dp"
+    android:height="466dp"
+    android:viewportWidth="466"
+    android:viewportHeight="466">
+
+    <!-- Background -->
+    <path android:pathData="M0,0 L466,0 L466,466 L0,466 Z"
+          android:fillColor="#000000" />
+
+    <!-- Round mask clip approximation (dark corners) -->
+    <path android:pathData="M233,0 A233,233 0 1,1 232.99,0 Z"
+          android:fillColor="#000000"
+          android:strokeColor="#000000" />
+
+    <!-- Horizontal separator lines -->
+    <path android:pathData="M32,44 L434,44"
+          android:strokeColor="#00CC34" android:strokeWidth="1" />
+    <path android:pathData="M32,142 L434,142"
+          android:strokeColor="#00CC34" android:strokeWidth="1" />
+    <path android:pathData="M32,306 L434,306"
+          android:strokeColor="#00CC34" android:strokeWidth="1" />
+
+    <!-- Prompt text (approximate) -->
+    <path android:pathData="M120,36 L346,36"
+          android:strokeColor="#00FFFF" android:strokeWidth="2" />
+
+    <!-- Clock digits (large block approximation) -->
+    <path android:pathData="M100,80 L180,80 L180,130 L100,130 Z"
+          android:fillColor="#00FF41" android:fillAlpha="0.9" />
+    <path android:pathData="M193,80 L273,80 L273,130 L193,130 Z"
+          android:fillColor="#00FF41" android:fillAlpha="0.9" />
+    <path android:pathData="M286,80 L366,80 L366,130 L286,130 Z"
+          android:fillColor="#00FF41" android:fillAlpha="0.9" />
+
+    <!-- Date bar -->
+    <path android:pathData="M120,136 L346,136"
+          android:strokeColor="#00FFFF" android:strokeWidth="6" />
+
+    <!-- Data rows (5 rows × 2 progress bars) -->
+    <!-- Row 1 -->
+    <path android:pathData="M32,165 L160,165"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M160,165 L220,165"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <path android:pathData="M246,165 L360,165"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M360,165 L434,165"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <!-- Row 2 -->
+    <path android:pathData="M32,195 L100,195"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M100,195 L220,195"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <path android:pathData="M246,195 L400,195"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M400,195 L434,195"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <!-- Row 3 -->
+    <path android:pathData="M32,225 L190,225"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M190,225 L220,225"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <path android:pathData="M246,225 L340,225"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M340,225 L434,225"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <!-- Row 4 -->
+    <path android:pathData="M32,255 L130,255"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M130,255 L220,255"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <path android:pathData="M246,255 L310,255"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M310,255 L434,255"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <!-- Row 5 -->
+    <path android:pathData="M32,285 L200,285"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M200,285 L220,285"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+    <path android:pathData="M246,285 L390,285"
+          android:strokeColor="#00FF41" android:strokeWidth="4" />
+    <path android:pathData="M390,285 L434,285"
+          android:strokeColor="#005510" android:strokeWidth="4" />
+
+    <!-- Bottom block outlines -->
+    <path android:pathData="M32,310 L218,310 L218,340 L32,340 Z"
+          android:strokeColor="#00CC34" android:strokeWidth="1"
+          android:fillColor="#00000000" />
+    <path android:pathData="M248,310 L434,310 L434,340 L248,340 Z"
+          android:strokeColor="#00CC34" android:strokeWidth="1"
+          android:fillColor="#00000000" />
+    <path android:pathData="M32,348 L164,348 L164,378 L32,378 Z"
+          android:strokeColor="#00CC34" android:strokeWidth="1"
+          android:fillColor="#00000000" />
+    <path android:pathData="M177,348 L289,348 L289,378 L177,378 Z"
+          android:strokeColor="#00CC34" android:strokeWidth="1"
+          android:fillColor="#00000000" />
+    <path android:pathData="M302,348 L434,348 L434,378 L302,378 Z"
+          android:strokeColor="#00CC34" android:strokeWidth="1"
+          android:fillColor="#00000000" />
+    <path android:pathData="M126,385 L340,385 L340,415 L126,415 Z"
+          android:strokeColor="#00CC34" android:strokeWidth="1"
+          android:fillColor="#00000000" />
+</vector>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Black circle background -->
+    <path android:pathData="M54,54 m-54,0 a54,54 0 1,0 108,0 a54,54 0 1,0 -108,0"
+          android:fillColor="#000000" />
+    <!-- Green terminal prompt > -->
+    <path android:pathData="M22,38 L40,54 L22,70"
+          android:strokeColor="#00FF41" android:strokeWidth="5"
+          android:strokeLineCap="round" android:strokeLineJoin="round"
+          android:fillColor="#00000000" />
+    <!-- Blinking cursor block -->
+    <path android:pathData="M46,46 L82,46 L82,62 L46,62 Z"
+          android:fillColor="#00FF41" android:fillAlpha="0.85" />
+</vector>

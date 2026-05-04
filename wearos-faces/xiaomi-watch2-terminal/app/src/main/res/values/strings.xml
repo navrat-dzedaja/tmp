@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Terminal Watch Face</string>
+    <string name="watch_face_name">Terminal // CONKY</string>
+    <string name="watch_face_config">Terminal Watch Config</string>
+
+    <!-- Style option labels -->
+    <string name="style_matrix_green">Matrix Green</string>
+    <string name="style_amber">Amber CRT</string>
+    <string name="style_cyan">Cyan Terminal</string>
+    <string name="style_red">Red Alert</string>
+    <string name="style_white">Paper White</string>
+
+    <!-- Complication slot labels (shown in picker) -->
+    <string name="comp_battery">Battery</string>
+    <string name="comp_heart_rate">Heart Rate</string>
+    <string name="comp_steps">Step Count</string>
+    <string name="comp_calories">Calories</string>
+    <string name="comp_distance">Distance</string>
+    <string name="comp_spo2">SpO2</string>
+    <string name="comp_sleep">Sleep</string>
+    <string name="comp_weather">Weather</string>
+    <string name="comp_temperature">Temperature</string>
+    <string name="comp_uv_index">UV Index</string>
+    <string name="comp_humidity">Humidity</string>
+    <string name="comp_stress">Stress Level</string>
+    <string name="comp_alarm">Next Alarm</string>
+    <string name="comp_sunrise">Sunrise/Sunset</string>
+    <string name="comp_notifications">Notifications</string>
+    <string name="comp_world_clock">World Clock</string>
+    <string name="comp_active_time">Active Time</string>
+    <string name="comp_floors">Floors Climbed</string>
+</resources>
