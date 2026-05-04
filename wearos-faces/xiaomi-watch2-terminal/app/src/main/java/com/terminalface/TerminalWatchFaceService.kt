@@ -4,14 +4,11 @@ import android.view.SurfaceHolder
 import androidx.wear.watchface.*
 import androidx.wear.watchface.style.CurrentUserStyleRepository
 
-/**
- * Entry point for the watch face.  Android OS binds to this service via the
- * BIND_WALLPAPER permission and starts rendering through [TerminalRenderer].
- */
 class TerminalWatchFaceService : WatchFaceService() {
 
+    // Context is not available at construction time; pass it lazily via applicationContext
     override fun createUserStyleSchema() =
-        TerminalStyleSchema.createUserStyleSchema(applicationContext)
+        TerminalStyleSchema.createUserStyleSchema()
 
     override fun createComplicationSlotsManager(
         currentUserStyleRepository: CurrentUserStyleRepository,
@@ -34,14 +31,7 @@ class TerminalWatchFaceService : WatchFaceService() {
             complicationSlotsManager   = complicationSlotsManager,
             canvasType                 = CanvasType.HARDWARE,
         )
+        // WatchFace.LegacyWatchFaceStyle does not exist in watchface 1.2.x
         return WatchFace(WatchFaceType.DIGITAL, renderer)
-            .setLegacyWatchFaceStyle(
-                WatchFace.LegacyWatchFaceStyle(
-                    viewProtectionMode              = 0,
-                    statusBarGravity                = 0,
-                    tapEventsAccepted               = true,
-                    accentColor                     = android.graphics.Color.parseColor("#00FF41"),
-                )
-            )
     }
 }
