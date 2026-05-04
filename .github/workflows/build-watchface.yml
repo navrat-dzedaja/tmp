@@ -6,7 +6,7 @@ on:
     paths:
       - "wearos-faces/**"
       - ".github/workflows/build-watchface.yml"
-  workflow_dispatch:      # ← lets you trigger manually from the GitHub web UI
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,18 +22,26 @@ jobs:
         with:
           java-version: "17"
           distribution: "temurin"
-          cache: gradle
 
-      - name: Grant Gradle wrapper execute permission
+      # Pin Gradle to 8.6 to match the project's wrapper config.
+      # This avoids picking up the runner's system Gradle (9.x) which
+      # is incompatible with AGP 8.3.x.
+      - name: Set up Gradle 8.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.6"
+
+      # Generate local.properties with the runner's Android SDK path.
+      # ANDROID_HOME is always set correctly on ubuntu-latest runners.
+      # We do NOT touch ANDROID_SDK_ROOT — leaving both vars consistent
+      # avoids the "multiple SDK paths" error from Gradle.
+      - name: Write local.properties
         working-directory: wearos-faces/xiaomi-watch2-terminal
-        run: chmod +x gradlew 2>/dev/null || true
-        # gradlew not committed — fall back to system gradle via wrapper download
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Build debug APK
         working-directory: wearos-faces/xiaomi-watch2-terminal
         run: gradle assembleDebug --no-daemon
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
