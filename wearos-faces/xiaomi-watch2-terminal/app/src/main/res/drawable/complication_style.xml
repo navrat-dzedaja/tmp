@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Transparent drawable used as the ComplicationDrawable source.
+    The TerminalRenderer draws all complication data manually via Canvas
+    so the drawable itself stays invisible — we only use it as a factory
+    placeholder required by the WatchFace complications API.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+</shape>

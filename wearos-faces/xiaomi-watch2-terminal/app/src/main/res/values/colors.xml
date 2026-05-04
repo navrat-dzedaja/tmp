@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matrix Green theme (default) -->
+    <color name="matrix_bg">#000000</color>
+    <color name="matrix_primary">#00FF41</color>
+    <color name="matrix_secondary">#00AA2C</color>
+    <color name="matrix_dim">#005510</color>
+    <color name="matrix_accent">#00FFFF</color>
+    <color name="matrix_warning">#FFFF00</color>
+    <color name="matrix_critical">#FF3333</color>
+
+    <!-- Amber CRT theme -->
+    <color name="amber_bg">#0A0500</color>
+    <color name="amber_primary">#FFB000</color>
+    <color name="amber_secondary">#AA7700</color>
+    <color name="amber_dim">#553C00</color>
+    <color name="amber_accent">#FFD700</color>
+
+    <!-- Cyan Terminal theme -->
+    <color name="cyan_bg">#000A0A</color>
+    <color name="cyan_primary">#00FFFF</color>
+    <color name="cyan_secondary">#009999</color>
+    <color name="cyan_dim">#004444</color>
+    <color name="cyan_accent">#00FF88</color>
+
+    <!-- Red Alert theme -->
+    <color name="red_bg">#080000</color>
+    <color name="red_primary">#FF2222</color>
+    <color name="red_secondary">#AA1111</color>
+    <color name="red_dim">#440000</color>
+    <color name="red_accent">#FF8800</color>
+
+    <!-- Paper White theme -->
+    <color name="white_bg">#F5F5F5</color>
+    <color name="white_primary">#111111</color>
+    <color name="white_secondary">#444444</color>
+    <color name="white_dim">#AAAAAA</color>
+    <color name="white_accent">#0055AA</color>
+</resources>
