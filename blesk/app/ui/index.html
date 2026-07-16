@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blesk</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>⚡ Blesk</h1>
+    <form id="load-form">
+      <input id="playlist-url" type="url" required
+             placeholder="URL M3U playlistu (např. https://iptv-org.github.io/iptv/index.m3u)" />
+      <button type="submit" id="load-btn">Načíst</button>
+    </form>
+  </header>
+
+  <main>
+    <aside>
+      <input id="search" type="search" placeholder="Hledat kanál…" disabled />
+      <select id="group-filter" disabled>
+        <option value="">Všechny skupiny</option>
+      </select>
+      <p id="status">Zadej URL playlistu a klikni na Načíst.</p>
+      <ul id="channel-list"></ul>
+    </aside>
+
+    <section id="detail" hidden>
+      <h2 id="detail-name"></h2>
+      <p id="detail-group"></p>
+      <code id="detail-url"></code>
+      <div class="actions">
+        <button id="copy-url">Kopírovat URL</button>
+        <button id="try-play">Zkusit přehrát</button>
+      </div>
+      <video id="player" controls hidden></video>
+      <p class="hint">
+        Webview přehraje jen formáty podporované systémem (MP4…). Produkční
+        přehrávání všech formátů (TS/HLS/RTSP) zajistí libmpv — viz roadmap.
+      </p>
+    </section>
+  </main>
+
+  <script src="main.js" type="module"></script>
+</body>
+</html>

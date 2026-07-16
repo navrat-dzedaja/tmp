@@ -1,0 +1,117 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0e1013;
+  --panel: #16191e;
+  --border: #262b33;
+  --text: #e8eaed;
+  --muted: #9aa3ad;
+  --accent: #f5c518;
+}
+
+body {
+  font: 14px/1.5 system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 { font-size: 1.1rem; white-space: nowrap; }
+
+#load-form { display: flex; gap: 0.5rem; flex: 1; }
+
+input, select, button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+}
+
+input { flex: 1; }
+input:focus, select:focus { outline: 1px solid var(--accent); }
+
+button {
+  cursor: pointer;
+  background: var(--accent);
+  color: #14130a;
+  font-weight: 600;
+  border: none;
+}
+button:disabled { opacity: 0.5; cursor: wait; }
+
+main { display: flex; flex: 1; min-height: 0; }
+
+aside {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-right: 1px solid var(--border);
+}
+
+#status { color: var(--muted); font-size: 0.85rem; }
+
+#channel-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+#channel-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#channel-list li:hover { background: var(--panel); }
+#channel-list li.active { background: var(--panel); outline: 1px solid var(--accent); }
+
+#channel-list img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+#channel-list .group { color: var(--muted); font-size: 0.75rem; }
+
+#detail {
+  flex: 1;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+#detail-group { color: var(--muted); }
+
+#detail code {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  word-break: break-all;
+  font-size: 0.8rem;
+}
+
+.actions { display: flex; gap: 0.5rem; }
+
+#player { width: 100%; max-height: 60vh; background: #000; border-radius: 8px; }
+
+.hint { color: var(--muted); font-size: 0.8rem; }

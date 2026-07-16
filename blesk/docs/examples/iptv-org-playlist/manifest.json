@@ -1,0 +1,10 @@
+{
+  "id": "org.iptv-org.playlist",
+  "name": "iptv-org — veřejné kanály",
+  "version": "1.0.0",
+  "description": "Veřejně dostupné IPTV kanály z projektu iptv-org",
+  "author": "iptv-org community",
+  "type": "m3u-source",
+  "url": "https://iptv-org.github.io/iptv/index.m3u",
+  "core": ">=0.1"
+}

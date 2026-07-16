@@ -1,0 +1,26 @@
+[package]
+name = "blesk-app"
+version = "0.1.0"
+edition = "2021"
+description = "Blesk — lightweight media player (Tauri 2 shell)"
+license = "MIT"
+
+# Built separately from the core workspace (needs Tauri platform prerequisites).
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+blesk-core = { path = "../../crates/blesk-core" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "charset"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
