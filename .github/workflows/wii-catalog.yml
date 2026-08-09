@@ -199,6 +199,34 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      # Last step on purpose: the log tail is the cheapest thing to read back,
+      # so the numbers that matter go here rather than mid-job.
+      - name: Report
+        if: always()
+        run: |
+          echo "===== SIZE SOURCE DISTRIBUTION ====="
+          cut -f4 .vimm-cache/work/size-source.tsv 2>/dev/null | sort | uniq -c | sort -rn || echo none
+          echo "===== CSV ====="
+          head -12 wii_games.csv 2>/dev/null || echo "(no CSV)"
+          echo "===== TOTAL ====="
+          tail -5 run.log 2>/dev/null || echo "(no run.log)"
+          echo "===== WHERE THE SIZE LIVES (one Wii detail page) ====="
+          perl -e '
+            local $/; my $h = <STDIN>; $h =~ s/\r?\n/ /g;
+            if ($h =~ m{(<tr\b[^>]*\bid=["\x27]dl-row["\x27].*?</tr>)}is) {
+              print "[dl-row] ", substr($1, 0, 900), "\n\n";
+            } else { print "[dl-row] not found\n\n" }
+            my $n = 0;
+            for my $s ($h =~ m{<script\b[^>]*>(.*?)</script>}gis) {
+              next unless $s =~ /media|Size|size/;
+              next if $s =~ /gtag|dataLayer/;
+              print "[script ", ++$n, "] ", substr($s, 0, 700), "\n\n";
+              last if $n >= 2;
+            }
+            print "[script] none mentioning media/size\n" unless $n;
+          ' <"$(ls .vimm-cache/detail/*.html | head -1)" || true
+          echo "===== END ====="
+
       - name: Fail if the scrape failed
         if: steps.scrape.outcome == 'failure'
         run: exit 1
