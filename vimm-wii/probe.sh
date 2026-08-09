@@ -38,18 +38,43 @@ printf "counts: table=%d tr=%d td=%d img=%d a=%d  /vault/N=%d  select=%d\n",
   count(qr{<img\b}i), count(qr{<a\b}i), count(qr{/vault/\d+}i),
   count(qr{<select\b}i);
 
-my @links = ($flat =~ m{(/vault/\d+)}gi);
-if (@links) {
-  print "\n--- 3 excerpts around game links (400 chars each) ---\n";
-  my $n = 0;
-  while ($flat =~ m{(.{0,120}/vault/\d+.{0,280})}gi) {
-    print "[$n] $1\n\n";
-    last if ++$n >= 3;
+if ($flat =~ m{<meta[^>]+og:title[^>]+content=["\x27]([^"\x27]+)}i) {
+  print "og:title: $1\n";
+}
+
+# List pages: the rows that hold a real game link.
+my $rows = 0;
+for my $r (split /<tr\b/i, $flat) {
+  next unless $r =~ m{/vault/\d+}i && $r =~ m{<td\b}i;
+  next if $r =~ m{<!DOCTYPE}i;
+  print "\n[list row] <tr", substr($r, 0, 460), "\n";
+  last if ++$rows >= 2;
+}
+
+# Detail pages: the info rows, the download box, and the JS that fills it in.
+for my $label ("Region", "Version", "Format", "Serial") {
+  for my $r (split /<tr\b/i, $flat) {
+    if ($r =~ m{<td\b[^>]*>\s*\Q$label\E}i) {
+      print "\n[$label row] <tr", substr($r, 0, 300), "\n";
+      last;
+    }
   }
-  print "--- first 2 img tags ---\n";
-  $n = 0;
-  while ($flat =~ m{(<img\b[^>]*>)}gi) { print "$1\n"; last if ++$n >= 2 }
-} else {
+}
+if ($flat =~ m{(<tr\b[^>]*\bid=["\x27]dl-row["\x27].*?</tr>)}is) {
+  print "\n[dl-row] ", substr($1, 0, 1200), "\n";
+}
+my @scripts = ($flat =~ m{<script\b[^>]*>(.*?)</script>}gis);
+my $shown = 0;
+for my $s (@scripts) {
+  next unless $s =~ /media|mediaId|size|Size|GB|MB/;
+  next if $s =~ /gtag|dataLayer|googletag/;
+  print "\n[script ", ++$shown, "] ", substr($s, 0, 1200), "\n";
+  last if $shown >= 3;
+}
+print "\n(no <script> mentioned media/size)\n" unless $shown;
+
+my @links = ($flat =~ m{(/vault/\d+)}gi);
+unless (@links) {
   print "\nNO GAME LINKS FOUND -- visible text of the page follows\n";
   my $t = $flat;
   $t =~ s{<script\b.*?</script>}{ }gis;
@@ -58,11 +83,6 @@ if (@links) {
   $t =~ s/&nbsp;/ /g; $t =~ s/&amp;/&/g;
   $t =~ s/\s+/ /g;
   print substr($t, 0, 1500), "\n";
-}
-
-# Download box: the size we care about lives here.
-if ($flat =~ m{(.{0,500}Download.{0,500})}is) {
-  print "\n--- around the word Download ---\n$1\n";
 }
 ' <"$OUT"
 

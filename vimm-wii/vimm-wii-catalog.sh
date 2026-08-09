@@ -51,7 +51,7 @@ PREFER_FORMAT="wbfs"
 MAX_RETRIES=4
 MAX_PAGES=50
 TOTAL_ROW=0
-USE_FILTERS=0
+USE_FILTERS=1
 PRINT_URL=""
 SELF_TEST=0
 
@@ -76,8 +76,10 @@ Options
       --region-priority LIST comma separated region preference, best first
       --format FMT           download format whose size to report (default: $PREFER_FORMAT)
       --exclude-extras       skip demos, prototypes, unlicensed, bonus, translations
-      --filters              use the explicit country-filter URL form instead
-                             of the plain /vault/Wii/X listing
+      --filters              use the country-filter URL form (default: it lists
+                             every regional variant)
+      --plain                use the plain /vault/Wii/X listing instead. Beware:
+                             it returns far fewer entries per section
       --print-url SECTION    print the list URL for SECTION and exit (debugging)
       --refresh              ignore cached pages and re-download
       --total-row            append a TOTAL row to the CSV as well
@@ -206,30 +208,53 @@ local $/; my $h = <STDIN>; $h = "" unless defined $h;
 $h =~ s/\r?\n/ /g;
 my %seen;
 for my $row (split /<tr\b/i, $h) {
-  # deliberately loose: any /vault/<id> reference in the row, whatever the
-  # quoting style or surrounding attributes
-  next unless $row =~ m{/vault/(\d+)}i;
-  my $id = $1;
+  # Every real row carries a hidden decoy link first:
+  #   <a href="/vault/999999" style="display:none">9</a><a href= "/vault/17478">..
+  # Note the space after href= on the real one. So: consider every anchor,
+  # throw away the hidden ones, and take the first that survives.
+  # Cells are: 0 = title, 1 = region flags, 2 = version, then extras.
+  # Extract them BEFORE any other //g match on this row: a //g loop leaves
+  # pos() set, and the next //g would start from there and shift every column.
+  my @cells = ($row =~ m{<td\b[^>]*>(.*?)</td>}gis);
+  next unless @cells;
+
+  my ($id, $name) = ("", "");
+  my $titlecell = $cells[0];
+  while ($titlecell =~ m{<a\b([^>]*)>(.*?)</a>}gis) {
+    my ($attrs, $text) = ($1, $2);
+    next if $attrs =~ /display\s*:\s*none/i;
+    next unless $attrs =~ m{\bhref\s*=\s*["\x27]?\s*(?:https?://[^/"\x27]+)?/vault/(\d+)}i;
+    next if $1 eq "999999";
+    ($id, $name) = ($1, dec($text));
+    last;
+  }
+  next unless $id ne "" && $name ne "";
   next if $seen{$id}++;
-  my ($name) = $row =~ m{/vault/\d+[^>]*>(.*?)</a>}is;
-  $name = dec($name);
-  if ($name eq "") {
-    ($name) = $row =~ m{/vault/\d+[^>]*\btitle=["\x27]([^"\x27]*)["\x27]}is;
-    $name = dec($name);
-  }
+
   my @regions;
-  while ($row =~ m{<img\b([^>]*)>}gis) {
-    my $attrs = $1;
-    my $r = "";
-    if    ($attrs =~ m{\btitle="([^"]+)"}i) { $r = $1 }
-    elsif ($attrs =~ m{\balt="([^"]+)"}i)   { $r = $1 }
-    elsif ($attrs =~ m{\bsrc="[^"]*/([A-Za-z][A-Za-z0-9_+-]*)\.(?:png|gif|jpg|svg)"}i) { $r = $1 }
-    $r = dec($r);
-    $r =~ s/_/ /g;
-    push @regions, $r if $r ne "" && $r !~ /^\d+$/;
+  if (defined $cells[1]) {
+    while ($cells[1] =~ m{<img\b([^>]*)>}gis) {
+      my $attrs = $1;
+      my $r = "";
+      if    ($attrs =~ m{\btitle=["\x27]([^"\x27]+)}i) { $r = $1 }
+      elsif ($attrs =~ m{\balt=["\x27]([^"\x27]+)}i)   { $r = $1 }
+      elsif ($attrs =~ m{\bsrc=["\x27][^"\x27]*/([A-Za-z][A-Za-z0-9_+-]*)\.(?:png|gif|jpg|svg)}i) { $r = $1 }
+      $r = dec($r); $r =~ s/_/ /g;
+      push @regions, $r if $r ne "" && $r !~ /^\d+$/;
+    }
   }
-  my @nums = ($row =~ m{<td\b[^>]*>\s*(?:<[^>]*>\s*)*([0-9]+(?:\.[0-9]+)*)\s*(?:<[^>]*>\s*)*</td>}gis);
-  my $version = @nums ? $nums[-1] : "";
+
+  my $version = "";
+  if (defined $cells[2]) {
+    my $v = dec($cells[2]);
+    $version = $v if $v =~ /^\d+(?:\.\d+)*$/;
+  }
+  if ($version eq "") {   # fall back to any version-shaped cell
+    for my $c (@cells) {
+      my $v = dec($c);
+      if ($v =~ /^\d+\.\d+$/) { $version = $v; last }
+    }
+  }
   print join("\t", $id, $name, join("+", @regions), $version), "\n";
 }
 '
@@ -278,25 +303,23 @@ for my $tr (split /<tr\b/i, $h) {
 }
 
 # --- title -----------------------------------------------------------------
+# og:title carries exactly the game name. The page has no <h1>/<h2> for the
+# title -- the only headings belong to the console nav menu, which is how an
+# earlier version of this script ended up calling every game "Nintendo".
 my $name = "";
-for my $re (qr{<h1\b[^>]*>(.*?)</h1>}is, qr{<h2\b[^>]*>(.*?)</h2>}is) {
-  if ($h =~ $re) { my $c = dec($1); if ($c ne "" && lc($c) ne "wii") { $name = $c; last } }
-}
-if ($name eq "" && $h =~ m{<meta[^>]+property="og:title"[^>]+content="([^"]+)"}i) { $name = dec($1) }
-if ($name eq "" && $h =~ m{<title>(.*?)</title>}is) {
+if ($h =~ m{<meta[^>]+property=["\x27]og:title["\x27][^>]+content=["\x27]([^"\x27]+)}i) {
   $name = dec($1);
-  $name =~ s/\s*[-|]\s*(Wii|The Vault|Vimm.s Lair).*$//i;
+}
+if ($name eq "" && $h =~ m{<title>(.*?)</title>}is) {
+  # "The Vault: Ghostbusters: The Video Game (Wii)"
+  $name = dec($1);
+  $name =~ s/^\s*The Vault\s*:\s*//i;
+  $name =~ s/\s*\((?:Wii|NES|SNES|N64|GameCube|GBA|DS|PS1|PS2|PSP)\)\s*$//i;
 }
 
-# --- release (romset) name, e.g. "Foo (USA) (En,Fr)" -----------------------
+# The romset name (id="data-good-title") is served empty and filled in by
+# /js/vault.min.js, so there is nothing to scrape here without a JS engine.
 my $release = "";
-if ($h =~ m{<i>(.*?)</i>}is) { my $c = dec($1); $release = $c if $c =~ /\(/ }
-if ($release eq "") {
-  while ($h =~ m{>([^<>]{6,240})<}g) {
-    my $c = dec($1);
-    if ($c =~ /\((?:$words)\b/i) { $release = $c; last }
-  }
-}
 
 # --- region ---------------------------------------------------------------
 my @regions;
@@ -312,10 +335,7 @@ if (defined $region_html) {
   my $txt = dec($region_html);
   push @regions, $txt if !@regions && $txt =~ /^(?:$words)/i;
 }
-if (!@regions && $release =~ /\(((?:$words)(?:\s*,\s*(?:$words))*)\)/i) {
-  push @regions, split(/\s*,\s*/, $1);
-}
-if (!@regions && ($f{region} || "") ne "") { push @regions, $f{region} }
+if (!@regions && ($f{region} || "") ne "" && $f{region} ne "?") { push @regions, $f{region} }
 my %rs; my @ru = grep { !$rs{lc $_}++ } @regions;
 my $region = join("+", @ru);
 $region = "Unknown" if $region eq "";
@@ -325,27 +345,46 @@ my ($rating, $votes) = ("", "");
 if (($f{overall} || "") =~ /([\d.]+)\s*(?:\(\s*(\d+)\s*votes?\s*\))?/) { $rating = $1; $votes = defined $2 ? $2 : "" }
 
 # --- size -----------------------------------------------------------------
-# The Vault prints the size next to the Download button, for whatever format
-# the Format selector currently shows (.wbfs is the Wii default). Several
-# fallbacks, because that box has changed shape over the years.
+# The size shown next to the Download button is rendered by JavaScript, so it
+# is looked for in this order:
+#   1. inside the <tr id="dl-row"> download box (in case it is server-side)
+#   2. in the JS data the page hands to setMediaId() -- a size string with a
+#      unit, or a raw byte count
+#   3. the old textual fallbacks, clearly labelled in the audit trail
+# Scoping matters: an unscoped search happily returns the "Cart size" row.
 my $SZ = qr{([\d]+(?:\.\d+)?)\s*(?:&nbsp;|\s)*\b(TB|GB|MB|KB)\b};
-my ($size, $unit, $src) = ("", "", "none");
+my ($size, $unit, $src, $bytes) = ("", "", "none", "");
 
-if ($h =~ m{\.\Q$prefer\E\b.{0,800}?$SZ}is)          { ($size,$unit,$src) = ($1,$2,"format-label") }
-if ($size eq "" && $h =~ m{Download.{0,600}?$SZ}is)   { ($size,$unit,$src) = ($1,$2,"after-download") }
+my ($dlrow) = $h =~ m{<tr\b[^>]*\bid=["\x27]dl-row["\x27].*?</tr>}is ? ($&) : ("");
+if ($dlrow ne "" && $dlrow =~ m{$SZ}is) { ($size,$unit,$src) = ($1,$2,"dl-row") }
+
 if ($size eq "") {
-  my @m;
-  while ($h =~ m{$SZ(?=.{0,600}?Download)}gis) { push @m, [$1,$2] }
-  if (@m) { ($size,$unit) = @{$m[-1]}; $src = "before-download" }
+  # JS payload: pick the entry for the preferred format when it is labelled,
+  # otherwise the first size-looking value.
+  my @scripts = ($h =~ m{<script\b[^>]*>(.*?)</script>}gis);
+  my $js = join(" ", @scripts);
+  if ($js =~ m{\Q$prefer\E.{0,200}?["\x27]?(?:size|Size|SIZE)["\x27]?\s*[:=]\s*["\x27]?$SZ}is) {
+    ($size,$unit,$src) = ($1,$2,"js-format-size");
+  } elsif ($js =~ m{["\x27]?(?:size|Size|SIZE)["\x27]?\s*[:=]\s*["\x27]$SZ}is) {
+    ($size,$unit,$src) = ($1,$2,"js-size-string");
+  } elsif ($js =~ m{["\x27]?(?:size|Size|SIZE|bytes|Bytes)["\x27]?\s*[:=]\s*["\x27]?(\d{6,})}is) {
+    ($bytes,$src) = ($1,"js-size-bytes");
+  }
 }
-if ($size eq "") {
+
+if ($size eq "" && $bytes eq "" && $h =~ m{\.\Q$prefer\E\b.{0,800}?$SZ}is) {
+  ($size,$unit,$src) = ($1,$2,"format-label");
+}
+if ($size eq "" && $bytes eq "") {
   my @m;
   while ($h =~ m{$SZ}gis) { push @m, [$1,$2] }
-  if (@m) { ($size,$unit) = @{$m[-1]}; $src = "last-on-page" }
+  if (@m) { ($size,$unit) = @{$m[-1]}; $src = "last-on-page-UNRELIABLE" }
 }
 
 my $gb = 0;
-if ($size ne "") {
+if ($bytes ne "") {
+  $gb = $bytes / (1024 * 1024 * 1024);
+} elsif ($size ne "") {
   my $u = uc $unit;
   $gb = $u eq "TB" ? $size * 1024
       : $u eq "GB" ? $size
@@ -389,18 +428,18 @@ use strict; use warnings;
 sub csvq { my $s = shift; $s = "" unless defined $s; $s =~ s/"/""/g; return "\"$s\"" }
 print join(",", map { csvq($_) } qw(
   name region version year publisher players serial crc rating votes
-  release_name format size_gb verified vault_id url duplicates_dropped)), "\n";
+  format size_gb size_source verified vault_id url duplicates_dropped)), "\n";
 while (my $l = <STDIN>) {
   chomp $l;
   my @c = split /\t/, $l, -1;
   next unless @c >= 19;
-  my ($gb,$id,$name,$region,$ver,$year,$pub,$players,$serial,$crc,$rating,$votes,$rel,$fmt,$verified) =
-     ($c[3],$c[4],$c[5],$c[6],$c[7],$c[8],$c[9],$c[10],$c[11],$c[12],$c[13],$c[14],$c[15],$c[16],$c[17]);
+  my ($gb,$id,$name,$region,$ver,$year,$pub,$players,$serial,$crc,$rating,$votes,$fmt,$verified,$src) =
+     ($c[3],$c[4],$c[5],$c[6],$c[7],$c[8],$c[9],$c[10],$c[11],$c[12],$c[13],$c[14],$c[16],$c[17],$c[18]);
   my $dropped = defined $c[19] ? $c[19] : "";
   $gb = sprintf("%.2f", $gb || 0);
   print join(",", map { csvq($_) }
     $name, $region, $ver, $year, $pub, $players, $serial, $crc, $rating, $votes,
-    $rel, $fmt, $gb, $verified, $id, "https://vimm.net/vault/$id", $dropped), "\n";
+    $fmt, $gb, $src, $verified, $id, "https://vimm.net/vault/$id", $dropped), "\n";
 }
 '
 
@@ -435,6 +474,7 @@ while [ $# -gt 0 ]; do
     --format)             PREFER_FORMAT="$(printf '%s' "$2" | tr 'A-Z' 'a-z' | sed 's/^\.//')"; shift 2 ;;
     --exclude-extras)     EXCLUDE_EXTRAS=1; shift ;;
     --filters)            USE_FILTERS=1; shift ;;
+    --plain)              USE_FILTERS=0; shift ;;
     --print-url)          PRINT_URL="$2"; shift 2 ;;
     --refresh)            REFRESH=1; shift ;;
     --total-row)          TOTAL_ROW=1; shift ;;
@@ -545,23 +585,42 @@ if [ "$SELF_TEST" -eq 1 ]; then
   mkdir -p "$CACHE/detail" "$WORK"
   echo "self-test workspace: $CACHE"
 
-  make_detail() { # id name region version size
+  # Fixtures mirror the markup the live site actually serves, as captured by
+  # probe.sh: a hidden decoy link before the real one, a space after href=,
+  # lowercase flag files with a title attribute, the console nav <h2> that must
+  # not be mistaken for the title, a three-column label/spacer/value info
+  # table, an empty JS-populated data-good-title, and the size inside
+  # <tr id="dl-row"> (id 105 instead carries it in the JS payload).
+  make_detail() { # id name region version size [js]
+    if [ "${6:-}" = "js" ]; then
+      _dl='<td style="width:33%"></td>'
+      _js="<script>var media = [{\"ID\":$1,\"Format\":\"wbfs\",\"Size\":\"$5\"}];</script>"
+    else
+      _dl="<td style=\"width:33%\">$5</td>"
+      _js=""
+    fi
     cat >"$CACHE/detail/$1.html" <<EOF
-<html><head><title>$2 - Wii - The Vault</title></head><body>
-<h2>$2</h2>
-<table class="rounded">
-<tr><td class="gray"><b>Region</b></td><td><img src="/images/flags/$3.png" title="$3"></td></tr>
-<tr><td class="gray"><b>Players</b></td><td>2</td></tr>
-<tr><td class="gray"><b>Year</b></td><td>2009</td></tr>
-<tr><td class="gray"><b>Publisher</b></td><td>Atari SA</td></tr>
-<tr><td class="gray"><b>Serial #</b></td><td>RVL-RGQE-USA</td></tr>
-<tr><td class="gray"><b>Overall</b></td><td>8.9 (21 votes)</td></tr>
-<tr><td colspan="2"><i>$2 ($3) (En,Fr,De)</i></td></tr>
-<tr><td class="gray"><b>CRC</b></td><td>a6539a7a</td></tr>
-<tr><td class="gray"><b>Verified</b></td><td>2026-08-04</td></tr>
-<tr><td class="gray"><b>Format</b></td><td><select><option>.wbfs</option><option>.iso</option></select></td></tr>
-<tr><td class="gray"><b>Version</b></td><td>$4</td></tr>
-<tr><td colspan="2"><input type="submit" value="Download">&nbsp;$5</td></tr>
+<html><head>
+<meta property="og:title" content="$2">
+<meta property="og:description" content="Download &quot;$2&quot; ($3) for the Wii">
+<title>The Vault: $2 (Wii)</title>
+$_js
+</head><body>
+<div class="menu"><h2>Nintendo</h2><a href="/vault/Wii">Wii</a></div>
+<table>
+<tr><td style="width:0px">Region</td><td style="width:15px"></td><td><img src="/images/flags/$(printf '%s' "$3" | tr 'A-Z' 'a-z').png" class="flag" title="$3"></td></tr>
+<tr><td style="width:0px">Players</td><td style="width:15px"></td><td> 2 </td></tr>
+<tr><td>Year</td><td></td><td>2009</td></tr>
+<tr><td>Publisher</td><td></td><td>Atari SA</td></tr>
+<tr><td style="white-space:nowrap">Serial #</td><td></td><td>RVL-RGQE-USA</td></tr>
+<tr><td>Graphics</td><td></td><td>8.14</td></tr>
+<tr><td>Overall</td><td></td><td>8.9&nbsp;<span style="font-size:90%">(21 votes)</span>&nbsp;<div style="float:right"><a href="/vault/?p=rating&amp;id=$1">Rate it!</a></div></td></tr>
+<tr><td style="font-style:italic" colspan="3" id="data-good-title"> </td></tr>
+<tr><td>CRC</td><td></td><td>a6539a7a</td></tr>
+<tr><td>Verified</td><td></td><td>2026-08-04</td></tr>
+<tr><td>Format</td><td></td><td><select id="dl_format"><option>.wbfs</option><option>.iso</option></select></td></tr>
+<tr><td>Version</td><td></td><td>$4</td></tr>
+<tr id="dl-row"><td style="width:33%"></td><td style="width:33%"><form action="//dl3.vimm.net/" method="POST" id="dl_form"><input type="hidden" name="mediaId" value="$1"><input type="submit" value="Download"></form></td>$_dl</tr>
 </table></body></html>
 EOF
   }
@@ -570,18 +629,15 @@ EOF
   make_detail 102 "Ghostbusters: The Video Game" USA   1.1 "2.81 GB"
   make_detail 103 "Ghost Squad"                  Japan 1.0 "512 MB"
   make_detail 104 "Ghost Squad"                  Europe 1.0 "600 MB"
-  make_detail 105 "Geon Cube"                    USA   1.0 "1.00 GB"
+  make_detail 105 "Geon Cube"                    USA   1.0 "1.00 GB" js
   printf '101\n102\n103\n104\n105\n' >"$WORK/ids.txt"
 
-  # list-page parser fixture
+  # List-page fixture: note the decoy anchor and the "href= " spacing.
   cat >"$CACHE/list.html" <<'EOF'
 <table><tr><th>Title</th><th>Region</th><th>Version</th></tr>
-<tr><td><a href="/vault/101" title="x">Ghostbusters: The Video Game</a></td>
-    <td><img src="/images/flags/Europe.png" title="Europe"></td><td>1.0</td></tr>
-<tr><td><a href="/vault/103">Ghost Squad</a></td>
-    <td><img src="/images/flags/Japan.png" title="Japan"></td><td>1.0</td></tr>
-<tr><td><a href="/vault/106">Girls Life: Sleepover Party</a></td>
-    <td><img src="/images/flags/Australia.png" title="Australia"><img src="/images/flags/Europe.png" title="Europe"></td><td>1.0</td></tr>
+<tr><td style="width:auto"><a href="/vault/999999" style="display:none">9</a><a href= "/vault/101">Ghostbusters: The Video Game</a></td><td style="width:65px; text-align:center"><div style="display:flex"><img src="/images/flags/europe.png" class="flag" title="Europe"></div></td><td style="width:85px; text-align:center">1.0</td><td style="width:110px">2026-08-04</td></tr>
+<tr><td style="width:auto"><a href="/vault/999999" style="display:none">9</a><a href= "/vault/103">Ghost Squad</a></td><td style="width:65px; text-align:center"><div style="display:flex"><img src="/images/flags/japan.png" class="flag" title="Japan"></div></td><td style="width:85px; text-align:center">1.0</td><td style="width:110px">2026-08-04</td></tr>
+<tr><td style="width:auto"><a href="/vault/999999" style="display:none">9</a><a href= "/vault/106">Girls Life: Sleepover Party</a></td><td style="width:65px; text-align:center"><div style="display:flex"><img src="/images/flags/australia.png" class="flag" title="Australia"><img src="/images/flags/europe.png" class="flag" title="Europe"></div></td><td style="width:85px; text-align:center">1.0</td><td style="width:110px">2026-08-04</td></tr>
 </table>
 EOF
 
@@ -610,10 +666,14 @@ EOF
   chk "detail serial"    "$(head -1 "$WORK/rows.tsv" | cut -f12)" "RVL-RGQE-USA"
   chk "detail rating"    "$(head -1 "$WORK/rows.tsv" | cut -f14)" "8.9"
   chk "detail votes"     "$(head -1 "$WORK/rows.tsv" | cut -f15)" "21"
-  chk "detail release"   "$(head -1 "$WORK/rows.tsv" | cut -f16)" "Ghostbusters: The Video Game (Europe) (En,Fr,De)"
   chk "detail format"    "$(head -1 "$WORK/rows.tsv" | cut -f17)" "wbfs"
+  chk "detail verified"  "$(head -1 "$WORK/rows.tsv" | cut -f18)" "2026-08-04"
   chk "size GB"          "$(head -1 "$WORK/rows.tsv" | cut -f4)" "2.7500"
+  chk "size from dl-row" "$(head -1 "$WORK/rows.tsv" | cut -f19)" "dl-row"
   chk "size MB->GB"      "$(awk -F'\t' '$5==103{print $4}' "$WORK/rows.tsv")" "0.5000"
+  chk "size from JS"     "$(awk -F'\t' '$5==105{print $4 "/" $19}' "$WORK/rows.tsv")" "1.0000/js-format-size"
+  # the console nav heading must not win over og:title
+  chk "nav h2 ignored"   "$(awk -F'\t' '$6 ~ /Nintendo/{print "leaked"}' "$WORK/rows.tsv")" ""
 
   dedup_rows
   chk "deduped count"    "$(wc -l <"$WORK/final.tsv" | tr -d ' ')" "3"
@@ -626,8 +686,9 @@ EOF
   chk "csv header"       "$(head -1 "$OUT" | cut -d, -f1-3)" '"name","region","version"'
   chk "csv data rows"    "$(( $(wc -l <"$OUT" | tr -d ' ') - 1 ))" "3"
   chk "csv quoting"      "$(grep -c '^"Geon Cube","USA","1.0"' "$OUT" | tr -d ' ')" "1"
-  chk "csv release col"  "$(csvfield "$OUT" 4 11)" "Ghostbusters: The Video Game (Europe) (En,Fr,De)"
-  chk "csv size col"     "$(csvfield "$OUT" 4 13)" "2.75"
+  chk "csv format col"   "$(csvfield "$OUT" 4 11)" "wbfs"
+  chk "csv size col"     "$(csvfield "$OUT" 4 12)" "2.75"
+  chk "csv size source"  "$(csvfield "$OUT" 4 13)" "dl-row"
   chk "csv verified col" "$(csvfield "$OUT" 4 14)" "2026-08-04"
   chk "csv url col"      "$(csvfield "$OUT" 4 16)" "https://vimm.net/vault/101"
   chk "csv dropped col"  "$(csvfield "$OUT" 4 17)" "Ghostbusters: The Video Game (USA) v1.1 #102"
