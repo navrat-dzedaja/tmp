@@ -11,7 +11,7 @@
 #   2. Fetches each game's detail page (cached on disk, so re-runs are cheap
 #      and an interrupted run resumes where it stopped).
 #   3. Parses name / region / version / year / publisher / players / serial /
-#      CRC / rating / release name / download size.
+#      CRC / rating / download size (see README: the size is JS-rendered).
 #   4. Collapses titles that exist for several regions down to one row,
 #      preferring Europe (order is configurable, see --region-priority).
 #   5. Writes the CSV and prints the summed size at the end.

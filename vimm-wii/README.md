@@ -46,12 +46,14 @@ CSV má hlavičku a sloupce:
 
 ```
 name,region,version,year,publisher,players,serial,crc,rating,votes,
-release_name,format,size_gb,verified,vault_id,url,duplicates_dropped
+format,size_gb,size_source,verified,vault_id,url,duplicates_dropped
 ```
 
-Všechna pole jsou v uvozovkách, takže názvy jako `Gesundheitscoach, Der` nebo
-`Foo (Europe) (En,Fr,De)` neposunou sloupce. `duplicates_dropped` ukazuje, které
-regionální varianty se zahodily — např. `Ghostbusters: The Video Game (USA) v1.1 #102`.
+Všechna pole jsou v uvozovkách, takže názvy jako `Gesundheitscoach, Der`
+neposunou sloupce. `duplicates_dropped` ukazuje, které regionální varianty se
+zahodily — např. `Ghostbusters: The Video Game (USA) v1.1 #102`.
+`size_source` říká, kterým pravidlem se velikost našla — viz sekci o velikostech
+níž; hodnota `last-on-page-UNRELIABLE` znamená „tomuto číslu nevěř".
 
 Na konci skript vypíše:
 
@@ -94,21 +96,66 @@ Když se něco rozbije, skript to řekne konkrétně: rozliší „nešla stáhn
 jedna stránka" (síť/blokace) od „stránky mám, ale nic se nenaparsovalo"
 (změnilo se HTML) a v prvním případě vypíše i původní chybu z curlu.
 
-## Známá omezení
+## Jak Vimm brání scrapování (a jak to skript řeší)
 
-- **Parsery nebyly vyzkoušené proti živému vimm.net.** Prostředí, kde skript
-  vznikl, má vimm.net zablokovaný na egress proxy, takže struktura HTML je
-  odvozená ze snímků stránek a z URL formátů, ne z reálné odpovědi serveru.
-  Logika je psaná tolerantně (víc fallbacků pro velikost i region) a otestovaná
-  na fixturách, ale **první běh si prosím pusť s `-s G --limit 5 -v` a mrkni na
-  výstup.** Kdyby sloupce nesedly, upravovat se budou jen dva perl bloky
-  `PARSE_LIST_PL` a `PARSE_DETAIL_PL`.
-- Velikost se bere z toho, co stránka zobrazuje u tlačítka Download; pro Wii je
-  default `.wbfs`. Skript zkouší v tomto pořadí: velikost u `.wbfs` → velikost
-  za tlačítkem Download → před tlačítkem → poslední velikost na stránce.
+Tohle je zjištěné z reálné odpovědi serveru, ne z dokumentace:
+
+- **Každý řádek výpisu začíná skrytým past-odkazem**:
+  `<a href="/vault/999999" style="display:none">9</a>`. Naivní regex na
+  `/vault/(\d+)` sebere tuhle nulu a ne hru. Skript proto prochází všechny
+  odkazy v prvním sloupci, zahazuje `display:none` a ID 999999.
+- **Skutečný odkaz má mezeru za `href=`**: `<a href= "/vault/17478">`. Přesný
+  vzor `href="/vault/N"` nenajde vůbec nic.
+- **Stránka hry nemá `<h1>`/`<h2>` s názvem** — jediné nadpisy patří menu konzolí,
+  takže naivní parser pojmenuje každou hru „Nintendo". Název se bere z `og:title`.
+- **Název romsetu** (`id="data-good-title"`) server posílá prázdný, doplňuje ho
+  `/js/vault.min.js`. Bez JS engine se nedá získat, proto ten sloupec v CSV není.
+
+## Velikosti — čti prosím
+
+Velikost u tlačítka Download **taky vykresluje JavaScript**. Server posílá jen
+`<tr id="dl-row">` s formulářem, který POSTuje `mediaId` na `dl3.vimm.net`.
+Skript zkouší velikost najít v tomto pořadí a do sloupce `size_source` zapíše,
+co zabralo:
+
+| size_source | význam |
+|---|---|
+| `dl-row` | z download boxu (server-side) — spolehlivé |
+| `js-format-size`, `js-size-string`, `js-size-bytes` | z JS dat stránky — spolehlivé |
+| `format-label` | text u `.wbfs` — pravděpodobně dobré |
+| `last-on-page-UNRELIABLE` | poslední velikost kdekoli na stránce — **nevěř** |
+| `none` (size_gb 0.00) | velikost se nenašla vůbec |
+
+Po běhu se koukni na rozdělení hodnot:
+
+```bash
+cut -f4 .vimm-cache/work/size-source.tsv | sort | uniq -c | sort -rn
+```
+
+Když převažují `none` nebo `UNRELIABLE`, znamená to, že Vimm velikost servíruje
+jinak, než skript čeká, a **součet bude podstřelený**. V takovém případě pusť
+`./probe.sh https://vimm.net/vault/17493` a podívej se, v jakém `<script>` bloku
+velikost je — přidat další vzor je pak otázka jednoho řádku v `PARSE_DETAIL_PL`
+(sekce `--- size ---`).
+
+## Další známá omezení
+
 - Jednotky se převádějí binárně (1 GB = 1024 MB).
 - Hry na víc discích se berou jako jeden záznam s velikostí, kterou stránka udává.
 - Filtr `version=new` znamená, že se u každé hry bere jen nejnovější revize.
+- Výchozí URL je filtrovaný výpis, protože vrací víc záznamů: pro sekci G
+  126 her, kdežto plain `/vault/Wii/G` jen 48. `--plain` přepne na druhou formu.
+
+## GitHub Actions
+
+`.github/workflows/wii-catalog.yml` umí skript pustit na macOS runneru
+(stejná platforma, na jakou je psaný, a s neomezeným přístupem k síti).
+Push do vývojové branche udělá malý smoke run, „Run workflow" bere parametry
+`sections` (`all` = vše), `limit`, `delay`, `jobs`. CSV, `size-source.tsv`
+a ukázkové HTML se ukládají jako artifacts a součet se vypíše do job summary.
+
+Pozn.: aby šel workflow spustit ručně tlačítkem, musí ten soubor být na výchozí
+branchi (`main`) — dokud je jen na feature branchi, spouští se pushem.
 
 ## Buď slušný
 
