@@ -8,8 +8,9 @@
 #
 # What it does
 #   1. Walks every section of the Wii list (# and A-Z), following pagination.
-#   2. Fetches each game's detail page (cached on disk, so re-runs are cheap
-#      and an interrupted run resumes where it stopped).
+#   2. Picks the preferred regional variant of each title from the listing, then
+#      fetches only those detail pages (cached on disk, so re-runs are cheap and
+#      an interrupted run resumes where it stopped).
 #   3. Parses name / region / version / year / publisher / players / serial /
 #      CRC / rating / romset name / exact download size.
 #   4. Collapses titles that exist for several regions down to one row,
@@ -266,6 +267,40 @@ local $/; my $h = <STDIN>; $h = "" unless defined $h;
 my %p;
 while ($h =~ m{[?&;](?:amp;)?page=(\d+)}gi) { $p{$1} = 1 if $1 > 1 && $1 <= 500 }
 print "$_\n" for sort { $a <=> $b } keys %p;
+'
+
+# Rank the list entries so the regional winner can be picked BEFORE any detail
+# page is fetched. The listing already carries name, region and version, which
+# is everything the dedup needs -- so only the winners get downloaded instead of
+# every regional variant of every title.
+PARSE_INDEX_PL='
+use strict; use warnings;
+my $priolist = $ENV{VW_PRIORITY} || "Europe,USA,Japan";
+while (my $l = <STDIN>) {
+  chomp $l;
+  my ($id, $name, $regions, $version) = split /\t/, $l, -1;
+  next unless defined $name && $name ne "";
+  $regions = "" unless defined $regions;
+  $version = "" unless defined $version;
+
+  my @ru = split /\+/, $regions;
+  @ru = ("Unknown") unless @ru;
+
+  my $prio = 999; my $i = 0;
+  for my $p (split /\s*,\s*/, $priolist) {
+    $i++;
+    next if $p eq "";
+    for my $r (@ru) { if (lc($r) eq lc($p)) { $prio = $i if $i < $prio } }
+  }
+
+  my $vkey = 0;
+  $vkey = $1 * 1000 + (defined $2 ? $2 : 0) if $version =~ /^(\d+)(?:\.(\d+))?/;
+
+  my $norm = lc $name;
+  $norm =~ s/&/and/g; $norm =~ s/[^a-z0-9]+/ /g; $norm =~ s/^ | $//g;
+
+  print join("\t", $norm, $prio, $vkey, $id, $name, $regions, $version), "\n";
+}
 '
 
 PARSE_DETAIL_PL='
@@ -556,6 +591,98 @@ parse_details() {
 }
 
 # dedup: winner per normalised name, plus a list of what was dropped
+# candidates.tsv: norm, rank, id, name, region, version -- rank 1 is the
+# preferred regional variant of that title, 2 the next best, and so on.
+build_candidates() {
+  perl -e "$PARSE_INDEX_PL" <"$WORK/index.tsv" \
+    | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k2,2n -k3,3nr -k4,4n \
+    | awk -F'\t' -v OFS='\t' '
+        { if ($1 != cur) { cur = $1; r = 0 } r++
+          print $1, r, $4, $5, $6, $7 }
+      ' >"$WORK/candidates.tsv"
+}
+
+# fetch_ids FILE -- download the detail page of every id in FILE (skips cached)
+fetch_ids() {
+  _src="$1"
+  : >"$WORK/todo.txt"
+  _need=0
+  while read -r id; do
+    [ -n "$id" ] || continue
+    if [ ! -s "$CACHE/detail/$id.html" ] || [ "$REFRESH" -eq 1 ]; then
+      printf '%s\n' "$id" >>"$WORK/todo.txt"; _need=$((_need + 1))
+    fi
+  done <"$_src"
+  _have=$(( $(wc -l <"$_src" | tr -d ' ') - _need ))
+  printf '%s already cached, %s to download\n' "$_have" "$_need" >&2
+  [ "$_need" -gt 0 ] || return 0
+
+  if [ "$JOBS" -gt 1 ]; then
+    xargs -n1 -P "$JOBS" "$SELF" --fetch-one <"$WORK/todo.txt"
+  else
+    _i=0
+    while read -r id; do
+      _i=$((_i + 1))
+      printf '\r  fetching %s/%s (id %s)   ' "$_i" "$_need" "$id" >&2
+      "$SELF" --fetch-one "$id"
+    done <"$WORK/todo.txt"
+    printf '\n' >&2
+  fi
+}
+
+# Fetch rank-1 candidates; if a title'\''s page is missing (404, or the fetch gave
+# up), fall back to its next-best regional variant rather than losing the title.
+resolve_winners() {
+  : >"$WORK/resolved.tsv"
+  _round=1
+  while [ "$_round" -le 3 ]; do
+    awk -F'\t' -v r="$_round" -v rf="$WORK/resolved.tsv" '
+      FILENAME == rf { res[$1] = 1; next }
+      $2 == r && !($1 in res) { print $3 }
+    ' "$WORK/resolved.tsv" "$WORK/candidates.tsv" >"$WORK/try.txt"
+    [ -s "$WORK/try.txt" ] || break
+    [ "$_round" -eq 1 ] || printf 'retrying %s title(s) with the next-best region\n' \
+      "$(wc -l <"$WORK/try.txt" | tr -d ' ')" >&2
+
+    fetch_ids "$WORK/try.txt"
+
+    : >"$WORK/ok.txt"
+    while read -r id; do
+      [ -s "$CACHE/detail/$id.html" ] && printf '%s\n' "$id" >>"$WORK/ok.txt"
+    done <"$WORK/try.txt"
+    awk -F'\t' -v OFS='\t' -v okf="$WORK/ok.txt" '
+      FILENAME == okf { ok[$1] = 1; next }
+      ok[$3]          { print $1, $3 }
+    ' "$WORK/ok.txt" "$WORK/candidates.tsv" >>"$WORK/resolved.tsv"
+
+    _round=$((_round + 1))
+  done
+
+  # what each winner beat, for the duplicates_dropped column
+  awk -F'\t' -v OFS='\t' -v rf="$WORK/resolved.tsv" '
+    FILENAME == rf { win[$1] = $2; next }
+    !($1 in win) { next }
+    $3 == win[$1] { next }
+    {
+      d = $4 " (" $5 ")"
+      if ($6 != "") d = d " v" $6
+      d = d " #" $3
+      k = win[$1]
+      drop[k] = (drop[k] == "" ? d : drop[k] " | " d)
+    }
+    END { for (k in drop) print k, drop[k] }
+  ' "$WORK/resolved.tsv" "$WORK/candidates.tsv" >"$WORK/dropped.tsv"
+}
+
+# Attach the dropped-variant list to the parsed winner rows.
+join_dropped() {
+  LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k5,5n "$WORK/rows.tsv" >"$WORK/rows.sorted.tsv"
+  awk -F'\t' -v OFS='\t' -v df="$WORK/dropped.tsv" '
+    FILENAME == df { dr[$1] = $2; next }
+    { print $0, ($5 in dr ? dr[$5] : "") }
+  ' "$WORK/dropped.tsv" "$WORK/rows.sorted.tsv" >"$WORK/final.tsv"
+}
+
 dedup_rows() {
   LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k2,2n -k3,3nr -k4,4nr -k5,5n \
     "$WORK/rows.tsv" >"$WORK/rows.sorted.tsv"
@@ -736,6 +863,40 @@ EOF
 
   KEEP_DUPES=1; dedup_rows
   chk "keep-duplicates"  "$(wc -l <"$WORK/final.tsv" | tr -d ' ')" "5"
+  KEEP_DUPES=0
+
+  # --- list-level dedup: pick winners before fetching any detail page --------
+  # 101/102 are the same title (Europe v1.0 vs USA v1.1), 103/104 likewise.
+  printf '%s\n' \
+    "101	Ghostbusters: The Video Game	Europe	1.0" \
+    "102	Ghostbusters: The Video Game	USA	1.1" \
+    "103	Ghost Squad	Japan	1.0" \
+    "104	Ghost Squad	Australia+Europe	1.0" \
+    "105	Geon Cube	USA	1.0" >"$WORK/index.tsv"
+  build_candidates
+  chk "cand rows"        "$(wc -l <"$WORK/candidates.tsv" | tr -d ' ')" "5"
+  chk "cand titles"      "$(cut -f1 "$WORK/candidates.tsv" | uniq | wc -l | tr -d ' ')" "3"
+  chk "EU is rank 1"     "$(awk -F'\t' '$1 ~ /^ghostbusters/ && $2==1 {print $3}' "$WORK/candidates.tsv")" "101"
+  chk "US is rank 2"     "$(awk -F'\t' '$1 ~ /^ghostbusters/ && $2==2 {print $3}' "$WORK/candidates.tsv")" "102"
+  chk "multiflag rank 1" "$(awk -F'\t' '$1=="ghost squad" && $2==1 {print $3}' "$WORK/candidates.tsv")" "104"
+  # only the 3 winners would be downloaded, not all 5 entries
+  chk "winners only"     "$(awk -F'\t' '$2==1{print $3}' "$WORK/candidates.tsv" | sort -n | tr '\n' ' ')" "101 104 105 "
+
+  # winner 101's page exists, so resolve_winners must settle on it in round 1
+  JOBS=1; REFRESH=0
+  resolve_winners >/dev/null 2>&1
+  chk "resolved count"   "$(wc -l <"$WORK/resolved.tsv" | tr -d ' ')" "3"
+  chk "dropped recorded2" "$(awk -F'\t' '$1==101{print $2}' "$WORK/dropped.tsv")" \
+                          "Ghostbusters: The Video Game (USA) v1.1 #102"
+
+  # fallback: winner 106 has no cached page, so rank 2 (id 105) must win
+  printf '%s\n' \
+    "106	Geon Cube	Europe	1.0" \
+    "105	Geon Cube	USA	1.0" >"$WORK/index.tsv"
+  build_candidates
+  DELAY=0; MAX_RETRIES=1
+  resolve_winners >/dev/null 2>&1
+  chk "missing winner"   "$(awk -F'\t' '$1=="geon cube"{print $2}' "$WORK/resolved.tsv")" "105"
 
   echo
   if [ "$fail" -eq 0 ]; then echo "self-test: all checks passed"; else echo "self-test: FAILURES"; fi
@@ -773,11 +934,9 @@ for sec in $SECTIONS; do
 done
 
 LC_ALL=C sort -u -t "$(printf '\t')" -k1,1 "$WORK/index.tsv" -o "$WORK/index.tsv"
-cut -f1 "$WORK/index.tsv" | LC_ALL=C sort -u -n >"$WORK/ids.all"
-if [ "$LIMIT" -gt 0 ]; then head -"$LIMIT" "$WORK/ids.all" >"$WORK/ids.txt"; else cp "$WORK/ids.all" "$WORK/ids.txt"; fi
 
-total=$(wc -l <"$WORK/ids.txt" | tr -d ' ')
-if [ "$total" -eq 0 ]; then
+entries=$(wc -l <"$WORK/index.tsv" | tr -d ' ')
+if [ "$entries" -eq 0 ]; then
   if [ -z "$(ls -A "$CACHE/list" 2>/dev/null)" ]; then
     die "no list page could be downloaded at all -- vimm.net was unreachable from
        this machine (network down, DNS, a VPN/proxy, or Vimm blocking the request).
@@ -786,45 +945,51 @@ if [ "$total" -eq 0 ]; then
   die "list pages downloaded but no games parsed -- the markup has probably changed.
        Inspect $CACHE/list/*.html and adjust PARSE_LIST_PL."
 fi
-printf '%s games to fetch\n' "$total" >&2
 
-# ---------------------------------------------------------------------------
-# Stage 2: detail pages (cached, resumable)
-# ---------------------------------------------------------------------------
 export VW_CACHE="$CACHE" VW_DELAY="$DELAY" VW_VERBOSE="$VERBOSE" \
        VW_RETRIES="$MAX_RETRIES" VW_REFRESH="$REFRESH"
 
-need=0
-: >"$WORK/todo.txt"
-while read -r id; do
-  if [ ! -s "$CACHE/detail/$id.html" ] || [ "$REFRESH" -eq 1 ]; then
-    printf '%s\n' "$id" >>"$WORK/todo.txt"; need=$((need + 1))
-  fi
-done <"$WORK/ids.txt"
-printf '%s already cached, %s to download\n' "$((total - need))" "$need" >&2
+# ---------------------------------------------------------------------------
+# Stage 2: pick the regional winners, then fetch only their detail pages
+# ---------------------------------------------------------------------------
+if [ "$KEEP_DUPES" -eq 1 ]; then
+  cut -f1 "$WORK/index.tsv" | LC_ALL=C sort -u -n >"$WORK/ids.all"
+else
+  build_candidates
+  titles=$(cut -f1 "$WORK/candidates.tsv" | LC_ALL=C uniq | wc -l | tr -d ' ')
+  printf '%s list entries -> %s distinct titles (%s regional duplicates skipped)\n' \
+    "$entries" "$titles" "$((entries - titles))" >&2
+  awk -F'\t' '$2 == 1 { print $3 }' "$WORK/candidates.tsv" \
+    | LC_ALL=C sort -u -n >"$WORK/ids.all"
+fi
 
-if [ "$need" -gt 0 ]; then
-  if [ "$JOBS" -gt 1 ]; then
-    xargs -n1 -P "$JOBS" "$SELF" --fetch-one <"$WORK/todo.txt"
-  else
-    i=0
-    while read -r id; do
-      i=$((i + 1))
-      printf '\r  fetching %s/%s (id %s)   ' "$i" "$need" "$id" >&2
-      "$SELF" --fetch-one "$id"
-    done <"$WORK/todo.txt"
-    printf '\n' >&2
-  fi
+if [ "$LIMIT" -gt 0 ]; then
+  head -"$LIMIT" "$WORK/ids.all" >"$WORK/ids.txt"
+else
+  cp "$WORK/ids.all" "$WORK/ids.txt"
+fi
+printf '%s detail pages to fetch\n' "$(wc -l <"$WORK/ids.txt" | tr -d ' ')" >&2
+
+if [ "$KEEP_DUPES" -eq 1 ] || [ "$LIMIT" -gt 0 ]; then
+  # --limit takes a flat slice, so the multi-round winner fallback does not apply
+  fetch_ids "$WORK/ids.txt"
+else
+  resolve_winners
+  cut -f2 "$WORK/resolved.tsv" | LC_ALL=C sort -u -n >"$WORK/ids.txt"
 fi
 
 # ---------------------------------------------------------------------------
-# Stage 3-5: parse, dedup, CSV, total
+# Stage 3-5: parse, attach dropped variants, CSV, total
 # ---------------------------------------------------------------------------
 parse_details
 [ -s "$WORK/rows.tsv" ] || die "nothing parsed -- inspect $CACHE/detail/*.html"
-# audit trail: size_gb, id, name, which regex found the size
+# audit trail: size_gb, id, name, which rule found the size
 cut -f4,5,6,19 "$WORK/rows.tsv" >"$WORK/size-source.tsv"
 
-dedup_rows
+if [ "$KEEP_DUPES" -eq 1 ] || [ "$LIMIT" -gt 0 ]; then
+  dedup_rows          # nothing was pre-deduped, fall back to row-level dedup
+else
+  join_dropped
+fi
 write_csv
 print_summary
