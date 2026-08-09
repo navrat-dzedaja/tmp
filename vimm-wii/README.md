@@ -170,9 +170,32 @@ velikost je — přidat další vzor je pak otázka jednoho řádku v `PARSE_DET
 Push do vývojové branche udělá malý smoke run, „Run workflow" bere parametry
 `sections` (`all` = vše), `limit`, `delay`, `jobs`. CSV, `size-source.tsv`
 a ukázkové HTML se ukládají jako artifacts a součet se vypíše do job summary.
+Na plný katalog to ale nepoužívej — viz sekci o rate limitingu výš; workflow je
+tady na ověřování parserů proti živému webu, ne na produkci dat.
 
 Pozn.: aby šel workflow spustit ručně tlačítkem, musí ten soubor být na výchozí
 branchi (`main`) — dokud je jen na feature branchi, spouští se pushem.
+
+## Rate limiting: kde tohle pouštět
+
+Ověřeno tvrdě: plný běh na GitHub Actions (macOS runner, `-j 2`, 1 s pauza)
+**nedoběhl** — po 6 hodinách ho zabil timeout a poslední hodiny strávil v HTTP 429
+backoffu. Konec logu vypadal takhle:
+
+```
+warning: 429 for https://vimm.net/vault/17497 -- rate limited, waiting 30s
+warning: 429 for https://vimm.net/vault/17499 -- rate limited, waiting 40s
+```
+
+Vimm datacentrovým IP adresám (a GitHub Actions je přesně to) limituje agresivně.
+Skript se choval správně — pauzoval a zkoušel to znovu — ale na tomhle se plný
+katalog dotáhnout nedá.
+
+**Pouštěj to z vlastního stroje**, z běžné domácí linky. Skript je na to psaný:
+cache v `.vimm-cache/` znamená, že běh můžeš kdykoli přerušit `Ctrl-C` a druhý
+den pustit znovu — pokračuje tam, kde skončil, takže se to dá rozložit na víc
+sezení. Když narazíš na 429 i doma, zvyš pauzu (`-d 2` nebo `-d 3`); je to
+paradoxně rychlejší než sbírat backoffy.
 
 ## Buď slušný
 

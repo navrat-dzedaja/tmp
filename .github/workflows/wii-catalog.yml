@@ -3,10 +3,15 @@ name: Wii Vault catalogue
 # Runs vimm-wii/vimm-wii-catalog.sh on a GitHub-hosted macOS runner, which is
 # both the script's target platform and a machine with unrestricted egress.
 #
-# The push trigger currently runs the FULL catalogue (all sections, no limit,
-# 2 parallel fetches ~ 2 req/s, roughly 20-25 min). Change the env defaults
-# below back to sections 'G' / limit '8' / jobs '1' for cheap smoke runs.
-# "Run workflow" takes the same knobs as inputs.
+# On push this does a cheap smoke run (one section, 8 games) to verify the
+# parsers against the live site. "Run workflow" takes sections/limit/delay/jobs
+# as inputs for something bigger.
+#
+# Do NOT expect a full catalogue run to finish here: run 31317854472 tried it
+# and was killed at the 360-minute limit, having spent most of that time in
+# HTTP 429 backoff. Vimm rate-limits this runner's datacenter IP hard. A full
+# run belongs on a normal residential connection, where the on-disk cache also
+# lets it resume across sessions.
 
 on:
   workflow_dispatch:
@@ -55,10 +60,10 @@ jobs:
     runs-on: ${{ inputs.runner || 'macos-latest' }}
     timeout-minutes: 360
     env:
-      SECTIONS: ${{ inputs.sections || 'all' }}
-      LIMIT: ${{ inputs.limit || '0' }}
+      SECTIONS: ${{ inputs.sections || 'G' }}
+      LIMIT: ${{ inputs.limit || '8' }}
       DELAY: ${{ inputs.delay || '1.0' }}
-      JOBS: ${{ inputs.jobs || '2' }}
+      JOBS: ${{ inputs.jobs || '1' }}
     steps:
       - uses: actions/checkout@v4
 
