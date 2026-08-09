@@ -11,7 +11,7 @@
 #   2. Fetches each game's detail page (cached on disk, so re-runs are cheap
 #      and an interrupted run resumes where it stopped).
 #   3. Parses name / region / version / year / publisher / players / serial /
-#      CRC / rating / download size (see README: the size is JS-rendered).
+#      CRC / rating / romset name / exact download size.
 #   4. Collapses titles that exist for several regions down to one row,
 #      preferring Europe (order is configurable, see --region-priority).
 #   5. Writes the CSV and prints the summed size at the end.
@@ -200,6 +200,7 @@ sub dec {
   $s =~ s/<[^>]*>/ /g;
   $s =~ s/&nbsp;/ /g; $s =~ s/&amp;/&/g; $s =~ s/&lt;/</g; $s =~ s/&gt;/>/g;
   $s =~ s/&quot;/"/g; $s =~ s/&#0?39;|&apos;|&rsquo;/\x27/g;
+  $s =~ s/&#x([0-9a-fA-F]+);/chr(hex($1))/ge;
   $s =~ s/&#(\d+);/chr($1)/ge;
   $s =~ s/[\t\r\n]+/ /g; $s =~ s/\s+/ /g; $s =~ s/^ | $//g;
   return $s;
@@ -269,6 +270,7 @@ print "$_\n" for sort { $a <=> $b } keys %p;
 
 PARSE_DETAIL_PL='
 use strict; use warnings;
+use MIME::Base64 ();
 my $id       = $ENV{VW_ID}       || "";
 my $words    = $ENV{VW_REGIONS}  || "USA|Europe|Japan";
 my $prefer   = $ENV{VW_FORMAT}   || "wbfs";
@@ -279,6 +281,7 @@ sub dec {
   $s =~ s/<[^>]*>/ /g;
   $s =~ s/&nbsp;/ /g; $s =~ s/&amp;/&/g; $s =~ s/&lt;/</g; $s =~ s/&gt;/>/g;
   $s =~ s/&quot;/"/g; $s =~ s/&#0?39;|&apos;|&rsquo;/\x27/g;
+  $s =~ s/&#x([0-9a-fA-F]+);/chr(hex($1))/ge;
   $s =~ s/&#(\d+);/chr($1)/ge;
   $s =~ s/[\t\r\n]+/ /g; $s =~ s/\s+/ /g; $s =~ s/^ | $//g;
   return $s;
@@ -296,6 +299,12 @@ for my $tr (split /<tr\b/i, $h) {
   $lab =~ s/\s*#\s*$//; $lab =~ s/[:\s]+$//;
   next unless $lab =~ /^[A-Za-z][A-Za-z .\/]{1,24}$/;
   my $raw = join(" ", @cells[1 .. $#cells]);
+  # A <select> (Version, Format, Disc #) must contribute only its chosen
+  # option, otherwise the value comes out as "1.0 1.1 1.0".
+  if ($raw =~ m{<select\b}i) {
+    if    ($raw =~ m{<option\b[^>]*\bselected\b[^>]*>([^<]*)}i) { $raw = $1 }
+    elsif ($raw =~ m{<option\b[^>]*>([^<]*)}i)                  { $raw = $1 }
+  }
   my $val = dec($raw);
   my $key = lc $lab;
   if (!exists $f{$key} || $f{$key} eq "") { $f{$key} = $val }
@@ -317,9 +326,21 @@ if ($name eq "" && $h =~ m{<title>(.*?)</title>}is) {
   $name =~ s/\s*\((?:Wii|NES|SNES|N64|GameCube|GBA|DS|PS1|PS2|PSP)\)\s*$//i;
 }
 
-# The romset name (id="data-good-title") is served empty and filled in by
-# /js/vault.min.js, so there is nothing to scrape here without a JS engine.
-my $release = "";
+# --- the JS media payload --------------------------------------------------
+# The page ships "let media=[{...}]" and the download form names which entry is
+# selected. That entry holds Zipped (the download size in KB, exactly the number
+# the page renders as e.g. "2.39 GB") and GoodTitle, a base64 romset filename --
+# the value the served id="data-good-title" cell is empty until JS fills it in.
+my ($dlrow) = $h =~ m{<tr\b[^>]*\bid=["\x27]dl-row["\x27].*?</tr>}is ? ($&) : ("");
+my ($mediaid) = $dlrow =~ m{name=["\x27]mediaId["\x27][^>]*\bvalue=["\x27](\d+)}i;
+my ($kb, $release) = ("", "");
+if (defined $mediaid && $mediaid ne "") {
+  if ($h =~ m{"ID"\s*:\s*\Q$mediaid\E\D.{0,4000}?"Zipped"\s*:\s*"?(\d+)}s)     { $kb = $1 }
+  if ($h =~ m{"ID"\s*:\s*\Q$mediaid\E\D.{0,4000}?"GoodTitle"\s*:\s*"([^"]*)"}s) {
+    my $d = eval { MIME::Base64::decode_base64($1) };
+    if (defined $d && $d =~ /^[\x20-\x7e]+$/) { $release = $d }
+  }
+}
 
 # --- region ---------------------------------------------------------------
 my @regions;
@@ -355,8 +376,10 @@ if (($f{overall} || "") =~ /([\d.]+)\s*(?:\(\s*(\d+)\s*votes?\s*\))?/) { $rating
 my $SZ = qr{([\d]+(?:\.\d+)?)\s*(?:&nbsp;|\s)*\b(TB|GB|MB|KB)\b};
 my ($size, $unit, $src, $bytes) = ("", "", "none", "");
 
-my ($dlrow) = $h =~ m{<tr\b[^>]*\bid=["\x27]dl-row["\x27].*?</tr>}is ? ($&) : ("");
-if ($dlrow ne "" && $dlrow =~ m{$SZ}is) { ($size,$unit,$src) = ($1,$2,"dl-row") }
+# Zipped is exact; the rendered "2.39 GB" is that value rounded to 2 decimals,
+# so preferring it keeps the grand total from drifting over thousands of rows.
+if ($kb ne "") { ($size,$unit,$src) = ($kb,"KB","js-zipped") }
+if ($size eq "" && $dlrow ne "" && $dlrow =~ m{$SZ}is) { ($size,$unit,$src) = ($1,$2,"dl-row") }
 
 if ($size eq "") {
   # JS payload: pick the entry for the preferred format when it is labelled,
@@ -409,7 +432,16 @@ for my $p (split /\s*,\s*/, $priolist) {
   for my $r (@ru) { if (lc($r) eq lc($p)) { $prio = $i if $i < $prio } }
 }
 
+# Clean the fields that come with decoration attached: the CRC cell carries a
+# "More..." link, Verified carries a warning glyph, Version can still hold a
+# list if the select markup changes.
+my $crc = $f{crc} || "";
+$crc = $1 if $crc =~ /\b([0-9a-fA-F]{8})\b/;
+my $verified = $f{verified} || "";
+$verified = $verified =~ /(\d{4}-\d{2}-\d{2})/ ? $1 : "";
+
 my $version = $f{version} || "";
+$version = $1 if $version =~ /^\s*(\d+(?:\.\d+)*)/;
 my $vkey = 0;
 if ($version =~ /^(\d+)(?:\.(\d+))?/) { $vkey = $1 * 1000 + (defined $2 ? $2 : 0) }
 
@@ -419,8 +451,8 @@ print join("\t", map { cell($_) }
   $norm, $prio, $vkey, $gb, $id,
   $name, $region, $version,
   ($f{year} || ""), ($f{publisher} || ""), ($f{players} || ""),
-  ($f{serial} || ""), ($f{crc} || ""), $rating, $votes,
-  $release, $format, ($f{verified} || ""), $src), "\n";
+  ($f{serial} || ""), $crc, $rating, $votes,
+  $release, $format, $verified, $src), "\n";
 '
 
 TO_CSV_PL='
@@ -428,18 +460,19 @@ use strict; use warnings;
 sub csvq { my $s = shift; $s = "" unless defined $s; $s =~ s/"/""/g; return "\"$s\"" }
 print join(",", map { csvq($_) } qw(
   name region version year publisher players serial crc rating votes
-  format size_gb size_source verified vault_id url duplicates_dropped)), "\n";
+  release_name format size_gb size_source verified vault_id url
+  duplicates_dropped)), "\n";
 while (my $l = <STDIN>) {
   chomp $l;
   my @c = split /\t/, $l, -1;
   next unless @c >= 19;
-  my ($gb,$id,$name,$region,$ver,$year,$pub,$players,$serial,$crc,$rating,$votes,$fmt,$verified,$src) =
-     ($c[3],$c[4],$c[5],$c[6],$c[7],$c[8],$c[9],$c[10],$c[11],$c[12],$c[13],$c[14],$c[16],$c[17],$c[18]);
+  my ($gb,$id,$name,$region,$ver,$year,$pub,$players,$serial,$crc,$rating,$votes,$rel,$fmt,$verified,$src) =
+     ($c[3],$c[4],$c[5],$c[6],$c[7],$c[8],$c[9],$c[10],$c[11],$c[12],$c[13],$c[14],$c[15],$c[16],$c[17],$c[18]);
   my $dropped = defined $c[19] ? $c[19] : "";
   $gb = sprintf("%.2f", $gb || 0);
   print join(",", map { csvq($_) }
     $name, $region, $ver, $year, $pub, $players, $serial, $crc, $rating, $votes,
-    $fmt, $gb, $src, $verified, $id, "https://vimm.net/vault/$id", $dropped), "\n";
+    $rel, $fmt, $gb, $src, $verified, $id, "https://vimm.net/vault/$id", $dropped), "\n";
 }
 '
 
@@ -591,12 +624,13 @@ if [ "$SELF_TEST" -eq 1 ]; then
   # not be mistaken for the title, a three-column label/spacer/value info
   # table, an empty JS-populated data-good-title, and the size inside
   # <tr id="dl-row"> (id 105 instead carries it in the JS payload).
-  make_detail() { # id name region version size [js]
-    if [ "${6:-}" = "js" ]; then
-      _dl='<td style="width:33%"></td>'
-      _js="<script>var media = [{\"ID\":$1,\"Format\":\"wbfs\",\"Size\":\"$5\"}];</script>"
+  make_detail() { # id name region version size [kb]
+    _dl="<td style=\"width:33%; text-align:center\" id=\"dl_size\">$5</td>"
+    if [ -n "${6:-}" ]; then
+      # the real payload: base64 GoodTitle, exact Zipped in KB, nested GoodDate
+      _b64=$(printf '%s (%s) (En,Fr).iso' "$2" "$3" | base64 | tr -d '\n')
+      _js="<script>let media=[{\"ID\":$1,\"GoodDate\":{\"date\":\"2026-08-04 12:54:58.000000\",\"timezone_type\":3},\"GoodTitle\":\"$_b64\",\"Serial\":\"RVL-RGQE-USA\",\"SortOrder\":1,\"Version\":\"$4\",\"Zipped\":\"$6\",\"AltZipped\":\"1600938\"}];</script>"
     else
-      _dl="<td style=\"width:33%\">$5</td>"
       _js=""
     fi
     cat >"$CACHE/detail/$1.html" <<EOF
@@ -616,10 +650,10 @@ $_js
 <tr><td>Graphics</td><td></td><td>8.14</td></tr>
 <tr><td>Overall</td><td></td><td>8.9&nbsp;<span style="font-size:90%">(21 votes)</span>&nbsp;<div style="float:right"><a href="/vault/?p=rating&amp;id=$1">Rate it!</a></div></td></tr>
 <tr><td style="font-style:italic" colspan="3" id="data-good-title"> </td></tr>
-<tr><td>CRC</td><td></td><td>a6539a7a</td></tr>
-<tr><td>Verified</td><td></td><td>2026-08-04</td></tr>
-<tr><td>Format</td><td></td><td><select id="dl_format"><option>.wbfs</option><option>.iso</option></select></td></tr>
-<tr><td>Version</td><td></td><td>$4</td></tr>
+<tr><td>CRC</td><td></td><td>a6539a7a&nbsp;<div style="float:right"><a href="#">More...</a></div></td></tr>
+<tr><td>Verified</td><td></td><td>2026-08-04 &#x26a0;</td></tr>
+<tr><td>Format</td><td></td><td><select id="dl_format"><option value="0" selected>.wbfs</option><option value="1">.rvz</option></select></td></tr>
+<tr><td>Version</td><td></td><td><select id="dl_version"><option>1.0</option><option selected>$4</option></select></td></tr>
 <tr id="dl-row"><td style="width:33%"></td><td style="width:33%"><form action="//dl3.vimm.net/" method="POST" id="dl_form"><input type="hidden" name="mediaId" value="$1"><input type="submit" value="Download"></form></td>$_dl</tr>
 </table></body></html>
 EOF
@@ -629,7 +663,8 @@ EOF
   make_detail 102 "Ghostbusters: The Video Game" USA   1.1 "2.81 GB"
   make_detail 103 "Ghost Squad"                  Japan 1.0 "512 MB"
   make_detail 104 "Ghost Squad"                  Europe 1.0 "600 MB"
-  make_detail 105 "Geon Cube"                    USA   1.0 "1.00 GB" js
+  # 1048576 KB is exactly 1 GB -- carries the JS payload as well
+  make_detail 105 "Geon Cube"                    USA   1.0 "1.00 GB" 1048576
   printf '101\n102\n103\n104\n105\n' >"$WORK/ids.txt"
 
   # List-page fixture: note the decoy anchor and the "href= " spacing.
@@ -666,12 +701,15 @@ EOF
   chk "detail serial"    "$(head -1 "$WORK/rows.tsv" | cut -f12)" "RVL-RGQE-USA"
   chk "detail rating"    "$(head -1 "$WORK/rows.tsv" | cut -f14)" "8.9"
   chk "detail votes"     "$(head -1 "$WORK/rows.tsv" | cut -f15)" "21"
-  chk "detail format"    "$(head -1 "$WORK/rows.tsv" | cut -f17)" "wbfs"
-  chk "detail verified"  "$(head -1 "$WORK/rows.tsv" | cut -f18)" "2026-08-04"
   chk "size GB"          "$(head -1 "$WORK/rows.tsv" | cut -f4)" "2.7500"
   chk "size from dl-row" "$(head -1 "$WORK/rows.tsv" | cut -f19)" "dl-row"
   chk "size MB->GB"      "$(awk -F'\t' '$5==103{print $4}' "$WORK/rows.tsv")" "0.5000"
-  chk "size from JS"     "$(awk -F'\t' '$5==105{print $4 "/" $19}' "$WORK/rows.tsv")" "1.0000/js-format-size"
+  chk "size from JS KB"  "$(awk -F'\t' '$5==105{print $4 "/" $19}' "$WORK/rows.tsv")" "1.0000/js-zipped"
+  chk "release from b64" "$(awk -F'\t' '$5==105{print $16}' "$WORK/rows.tsv")" "Geon Cube (USA) (En,Fr).iso"
+  chk "crc cleaned"      "$(head -1 "$WORK/rows.tsv" | cut -f13)" "a6539a7a"
+  chk "verified cleaned" "$(head -1 "$WORK/rows.tsv" | cut -f18)" "2026-08-04"
+  chk "version from sel" "$(head -1 "$WORK/rows.tsv" | cut -f8)" "1.0"
+  chk "format from sel"  "$(head -1 "$WORK/rows.tsv" | cut -f17)" "wbfs"
   # the console nav heading must not win over og:title
   chk "nav h2 ignored"   "$(awk -F'\t' '$6 ~ /Nintendo/{print "leaked"}' "$WORK/rows.tsv")" ""
 
@@ -686,12 +724,13 @@ EOF
   chk "csv header"       "$(head -1 "$OUT" | cut -d, -f1-3)" '"name","region","version"'
   chk "csv data rows"    "$(( $(wc -l <"$OUT" | tr -d ' ') - 1 ))" "3"
   chk "csv quoting"      "$(grep -c '^"Geon Cube","USA","1.0"' "$OUT" | tr -d ' ')" "1"
-  chk "csv format col"   "$(csvfield "$OUT" 4 11)" "wbfs"
-  chk "csv size col"     "$(csvfield "$OUT" 4 12)" "2.75"
-  chk "csv size source"  "$(csvfield "$OUT" 4 13)" "dl-row"
-  chk "csv verified col" "$(csvfield "$OUT" 4 14)" "2026-08-04"
-  chk "csv url col"      "$(csvfield "$OUT" 4 16)" "https://vimm.net/vault/101"
-  chk "csv dropped col"  "$(csvfield "$OUT" 4 17)" "Ghostbusters: The Video Game (USA) v1.1 #102"
+  chk "csv release col"  "$(csvfield "$OUT" 2 11)" "Geon Cube (USA) (En,Fr).iso"
+  chk "csv format col"   "$(csvfield "$OUT" 4 12)" "wbfs"
+  chk "csv size col"     "$(csvfield "$OUT" 4 13)" "2.75"
+  chk "csv size source"  "$(csvfield "$OUT" 4 14)" "dl-row"
+  chk "csv verified col" "$(csvfield "$OUT" 4 15)" "2026-08-04"
+  chk "csv url col"      "$(csvfield "$OUT" 4 17)" "https://vimm.net/vault/101"
+  chk "csv dropped col"  "$(csvfield "$OUT" 4 18)" "Ghostbusters: The Video Game (USA) v1.1 #102"
   # 2.75 + 0.5859375 (600MB) + 1.00
   chk "total sum"        "$(awk -F'\t' '{s+=$4} END{printf "%.2f", s}' "$WORK/final.tsv")" "4.34"
 
