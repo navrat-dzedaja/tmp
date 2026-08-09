@@ -1,0 +1,169 @@
+name: Wii Vault catalogue
+
+# Runs vimm-wii/vimm-wii-catalog.sh on a GitHub-hosted macOS runner, which is
+# both the script's target platform and a machine with unrestricted egress.
+#
+# On push to the development branch it does a small smoke run (one section, a
+# handful of games) so the parsers get verified against the live site cheaply.
+# Use "Run workflow" for a bigger or full run: set sections to "all" and limit
+# to 0.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sections:
+        description: 'Sections to scrape ("all", or e.g. "G" / "number A B")'
+        default: 'G'
+      limit:
+        description: 'Max games (0 = no limit)'
+        default: '8'
+      delay:
+        description: 'Seconds between requests'
+        default: '1.0'
+      jobs:
+        description: 'Parallel detail fetches'
+        default: '1'
+      runner:
+        description: 'Runner image'
+        type: choice
+        options: ['macos-latest', 'ubuntu-latest']
+        default: 'macos-latest'
+  push:
+    branches: ['claude/wii-games-scraper-csv-oqlhib']
+    paths:
+      - 'vimm-wii/**'
+      - '.github/workflows/wii-catalog.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    name: Offline self-test (bash 3.2)
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash version
+        run: /bin/bash --version | head -1
+      - name: Run self-test
+        run: ./vimm-wii/vimm-wii-catalog.sh --self-test
+
+  scrape:
+    name: Live scrape
+    needs: self-test
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
+    timeout-minutes: 360
+    env:
+      SECTIONS: ${{ inputs.sections || 'G' }}
+      LIMIT: ${{ inputs.limit || '8' }}
+      DELAY: ${{ inputs.delay || '1.0' }}
+      JOBS: ${{ inputs.jobs || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Can we reach vimm.net at all?
+        run: |
+          echo "runner egress check:"
+          curl -sS -o /dev/null -w 'HTTP %{http_code} in %{time_total}s\n' \
+            -A 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' \
+            https://vimm.net/vault/Wii || echo "curl failed: $?"
+
+      - name: Scrape
+        id: scrape
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          args=""
+          [ "$SECTIONS" != "all" ] && args="$args -s $SECTIONS"
+          [ "$LIMIT" != "0" ] && args="$args --limit $LIMIT"
+          echo "running: vimm-wii-catalog.sh $args -d $DELAY -j $JOBS"
+          ./vimm-wii/vimm-wii-catalog.sh $args -d "$DELAY" -j "$JOBS" \
+            -o wii_games.csv -c .vimm-cache 2>&1 | tee run.log
+
+      # Whatever happened above, show enough of the real markup to fix selectors.
+      - name: Diagnostics
+        if: always()
+        run: |
+          echo "=== files ==="
+          ls -la .vimm-cache/list .vimm-cache/detail 2>/dev/null | head -20 || true
+
+          list=$(ls .vimm-cache/list/*.html 2>/dev/null | head -1)
+          if [ -n "$list" ]; then
+            echo
+            echo "=== list page: $list ($(wc -c <"$list") bytes) ==="
+            echo "--- first 3 rows containing a /vault/ link ---"
+            tr '\n' ' ' <"$list" | grep -o '<tr[^>]*>.\{0,500\}' \
+              | grep '/vault/[0-9]' | head -3
+          fi
+
+          det=$(ls .vimm-cache/detail/*.html 2>/dev/null | head -1)
+          if [ -n "$det" ]; then
+            echo
+            echo "=== detail page: $det ($(wc -c <"$det") bytes) ==="
+            echo "--- info table rows ---"
+            tr '\n' ' ' <"$det" | grep -o '<tr[^>]*>.\{0,300\}' | head -18
+            echo "--- around the Download button ---"
+            tr '\n' ' ' <"$det" | grep -o '.\{600\}Download.\{600\}' | head -1
+          fi
+
+          echo
+          echo "=== parsed rows (first 3, tab separated) ==="
+          head -3 .vimm-cache/work/rows.tsv 2>/dev/null || echo "(no rows.tsv)"
+          echo
+          echo "=== where each size came from (size_gb, id, name, regex) ==="
+          head -10 .vimm-cache/work/size-source.tsv 2>/dev/null || echo "(none)"
+          echo
+          echo "=== CSV ==="
+          head -10 wii_games.csv 2>/dev/null || echo "(no CSV produced)"
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Wii catalogue run"
+            echo
+            echo "Sections \`$SECTIONS\`, limit \`$LIMIT\`, delay \`${DELAY}s\`, jobs \`$JOBS\`"
+            echo
+            if [ -s wii_games.csv ]; then
+              echo '```'
+              tail -8 run.log
+              echo '```'
+              echo
+              echo "Rows in CSV: $(( $(wc -l <wii_games.csv) - 1 ))"
+            else
+              echo "No CSV produced -- see the Diagnostics step."
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wii-catalogue
+          path: |
+            wii_games.csv
+            run.log
+            .vimm-cache/work/rows.tsv
+            .vimm-cache/work/size-source.tsv
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Keep a couple of raw pages so the markup can be inspected offline.
+      - name: Sample raw HTML
+        if: always()
+        run: |
+          mkdir -p samples
+          ls .vimm-cache/list/*.html 2>/dev/null | head -1 | xargs -I{} cp {} samples/ || true
+          ls .vimm-cache/detail/*.html 2>/dev/null | head -2 | xargs -I{} cp {} samples/ || true
+          ls -la samples || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: raw-html-samples
+          path: samples/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Fail if the scrape failed
+        if: steps.scrape.outcome == 'failure'
+        run: exit 1
