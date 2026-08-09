@@ -51,6 +51,8 @@ PREFER_FORMAT="wbfs"
 MAX_RETRIES=4
 MAX_PAGES=50
 TOTAL_ROW=0
+USE_FILTERS=0
+PRINT_URL=""
 SELF_TEST=0
 
 # Region preference, best first. Matched case-insensitively against the
@@ -74,6 +76,9 @@ Options
       --region-priority LIST comma separated region preference, best first
       --format FMT           download format whose size to report (default: $PREFER_FORMAT)
       --exclude-extras       skip demos, prototypes, unlicensed, bonus, translations
+      --filters              use the explicit country-filter URL form instead
+                             of the plain /vault/Wii/X listing
+      --print-url SECTION    print the list URL for SECTION and exit (debugging)
       --refresh              ignore cached pages and re-download
       --total-row            append a TOTAL row to the CSV as well
       --self-test            run the offline pipeline test and exit
@@ -168,7 +173,18 @@ filters_query() {
 }
 
 section_url() {
-  printf '%s/vault/?%s&section=%s' "$BASE" "$(filters_query)" "$1"
+  # Two ways to ask for a section listing:
+  #   plain    https://vimm.net/vault/Wii/G          (what the site links to)
+  #   filters  https://vimm.net/vault/?p=list&action=filters&...&section=G
+  # The plain listing already includes every regional variant, so it is the
+  # default; --filters switches to the explicit filter form.
+  if [ "$USE_FILTERS" -eq 1 ]; then
+    printf '%s/vault/?%s&section=%s' "$BASE" "$(filters_query)" "$1"
+  elif [ "$1" = "number" ]; then
+    printf '%s/vault/?p=list&system=Wii&section=number' "$BASE"
+  else
+    printf '%s/vault/Wii/%s' "$BASE" "$1"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -190,13 +206,15 @@ local $/; my $h = <STDIN>; $h = "" unless defined $h;
 $h =~ s/\r?\n/ /g;
 my %seen;
 for my $row (split /<tr\b/i, $h) {
-  next unless $row =~ m{href="(?:https?://[^/"]+)?/vault/(\d+)"}i;
+  # deliberately loose: any /vault/<id> reference in the row, whatever the
+  # quoting style or surrounding attributes
+  next unless $row =~ m{/vault/(\d+)}i;
   my $id = $1;
   next if $seen{$id}++;
-  my ($name) = $row =~ m{href="(?:https?://[^/"]+)?/vault/\d+"[^>]*>(.*?)</a>}is;
+  my ($name) = $row =~ m{/vault/\d+[^>]*>(.*?)</a>}is;
   $name = dec($name);
   if ($name eq "") {
-    ($name) = $row =~ m{href="(?:https?://[^/"]+)?/vault/\d+"[^>]*\btitle="([^"]*)"}is;
+    ($name) = $row =~ m{/vault/\d+[^>]*\btitle=["\x27]([^"\x27]*)["\x27]}is;
     $name = dec($name);
   }
   my @regions;
@@ -416,6 +434,8 @@ while [ $# -gt 0 ]; do
     --region-priority)    REGION_PRIORITY="$2"; shift 2 ;;
     --format)             PREFER_FORMAT="$(printf '%s' "$2" | tr 'A-Z' 'a-z' | sed 's/^\.//')"; shift 2 ;;
     --exclude-extras)     EXCLUDE_EXTRAS=1; shift ;;
+    --filters)            USE_FILTERS=1; shift ;;
+    --print-url)          PRINT_URL="$2"; shift 2 ;;
     --refresh)            REFRESH=1; shift ;;
     --total-row)          TOTAL_ROW=1; shift ;;
     --self-test)          SELF_TEST=1; shift ;;
@@ -424,6 +444,12 @@ while [ $# -gt 0 ]; do
     *) die "unknown option: $1 (try --help)" ;;
   esac
 done
+
+if [ -n "$PRINT_URL" ]; then
+  section_url "$PRINT_URL"
+  printf '\n'
+  exit 0
+fi
 
 [ "$SECTIONS" = "" ] && SECTIONS="number A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
 

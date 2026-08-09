@@ -69,6 +69,20 @@ jobs:
             -A 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' \
             https://vimm.net/vault/Wii || echo "curl failed: $?"
 
+      # Show what the server really returns for both list URL forms and for a
+      # detail page, so selector mismatches are diagnosable from this log.
+      - name: Probe page structure
+        run: |
+          chmod +x vimm-wii/probe.sh
+          echo "##### plain section listing"
+          ./vimm-wii/probe.sh "$(./vimm-wii/vimm-wii-catalog.sh --print-url G)"
+          echo
+          echo "##### country-filter listing"
+          ./vimm-wii/probe.sh "$(./vimm-wii/vimm-wii-catalog.sh --filters --print-url G)"
+          echo
+          echo "##### a detail page (Ghostbusters, from the screenshots)"
+          ./vimm-wii/probe.sh "https://vimm.net/vault/17493"
+
       - name: Scrape
         id: scrape
         continue-on-error: true
@@ -88,23 +102,44 @@ jobs:
           echo "=== files ==="
           ls -la .vimm-cache/list .vimm-cache/detail 2>/dev/null | head -20 || true
 
+          # NB: BSD grep caps regex repetition at 255, so excerpting is done in
+          # perl rather than with grep -o '.\{0,500\}'.
+          dump_rows() { # dump_rows FILE N -- first N <tr> blocks holding a game link
+            perl -e '
+              local $/; my $h = <STDIN>; $h =~ s/\r?\n/ /g;
+              my $want = $ARGV[0] || 3; my $n = 0;
+              for my $r (split /<tr\b/i, $h) {
+                next unless $r =~ m{/vault/\d+}i;
+                print "[row] <tr", substr($r, 0, 400), "\n\n";
+                last if ++$n >= $want;
+              }
+              print "(no <tr> block contained a /vault/ link)\n" unless $n;
+            ' "$2" <"$1"
+          }
+
           list=$(ls .vimm-cache/list/*.html 2>/dev/null | head -1)
           if [ -n "$list" ]; then
             echo
             echo "=== list page: $list ($(wc -c <"$list") bytes) ==="
-            echo "--- first 3 rows containing a /vault/ link ---"
-            tr '\n' ' ' <"$list" | grep -o '<tr[^>]*>.\{0,500\}' \
-              | grep '/vault/[0-9]' | head -3
+            dump_rows "$list" 3
           fi
 
           det=$(ls .vimm-cache/detail/*.html 2>/dev/null | head -1)
           if [ -n "$det" ]; then
             echo
             echo "=== detail page: $det ($(wc -c <"$det") bytes) ==="
-            echo "--- info table rows ---"
-            tr '\n' ' ' <"$det" | grep -o '<tr[^>]*>.\{0,300\}' | head -18
-            echo "--- around the Download button ---"
-            tr '\n' ' ' <"$det" | grep -o '.\{600\}Download.\{600\}' | head -1
+            perl -e '
+              local $/; my $h = <STDIN>; $h =~ s/\r?\n/ /g;
+              my $n = 0;
+              for my $r (split /<tr\b/i, $h) {
+                next unless $r =~ m{<t[dh]\b}i;
+                print "[tr] ", substr($r, 0, 220), "\n";
+                last if ++$n >= 16;
+              }
+              if ($h =~ m{(.{0,400}Download.{0,400})}is) {
+                print "\n[download box] $1\n";
+              }
+            ' <"$det"
           fi
 
           echo
