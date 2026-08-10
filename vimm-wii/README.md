@@ -39,7 +39,8 @@ sekund.
 |---|---|
 | `-o FILE` | výstupní CSV (default `wii_games.csv`) |
 | `-c DIR` | cache adresář (default `.vimm-cache`) |
-| `-d SEC` | pauza mezi requesty (default `1.0`) |
+| `-d SEC` | pauza mezi requesty (default `1.0`, s jitterem 0–25 %) |
+| `--gentle` | 60 s mezi requesty, jeden job — nastavení pro plný běh bez 429 |
 | `-j N` | paralelní stahování detailů (default `1`; `3` je slušné maximum) |
 | `-s "A B"` | jen vybrané sekce (`number` = `#`) |
 | `--limit N` | zastav po N hrách (na testování) |
@@ -86,11 +87,23 @@ stahováním detailů** — výpis už obsahuje název, region i verzi, takže s
 jen vítěz každého titulu. U sekce G to znamená ~48 requestů místo 126.
 Kdyby stránka vítěze nešla stáhnout (404, vzdání se po retry), vezme se druhá
 nejlepší regionální varianta, aby se titul neztratil úplně (max 3 kola). Vítěz se vybírá
-podle pořadí: **Europe → World → evropské země (UK, DE, FR, ES, IT, …) →
-Australia/NZ → USA → Japan → ostatní**. Při stejném regionu vyhraje vyšší verze,
-pak nižší vault ID. (Velikost jako tiebreak odpadla — ta je až v detailu, který
-se u prohraných variant vůbec nestahuje.) Pořadí se dá přepsat přes
-`--region-priority`.
+podle pořadí **Europe → USA → Japan → cokoli dalšího**. Při stejném regionu
+vyhraje vyšší verze, pak nižší vault ID. (Velikost jako tiebreak odpadla — ta je
+až v detailu, který se u prohraných variant vůbec nestahuje.)
+
+**Nic se nezahazuje.** Ta preference jen určuje, která varianta titulu se stáhne.
+Hra, která existuje jen pro USA, Japonsko, Německo nebo Koreu, vyhraje ve své
+kategorii a v CSV bude — jen s tím svým regionem. Ve sloupci
+`duplicates_dropped` vidíš, co konkrétně prohrálo.
+
+Jedna věc k rozvážení: Wii je regionově zamčená. Při striktním EU → USA → JP
+dostaneš u titulu, který vyšel v Německu a v USA, tu **americkou** (NTSC) verzi —
+a ta se ti na evropské konzoli bez homebrew nespustí, kdežto ta německá (PAL)
+ano. Když chceš nejdřív všechno PAL a teprve pak USA:
+
+```bash
+./vimm-wii-catalog.sh --region-priority "Europe,United Kingdom,Germany,France,Spain,Italy,Netherlands,Scandinavia,Australia,USA,Japan"
+```
 
 Klíč pro porovnání je název normalizovaný na malá písmena bez interpunkce.
 Pozor: dvě opravdu různé hry se shodným názvem by se tím slily do jedné —
@@ -208,8 +221,19 @@ paradoxně rychlejší než sbírat backoffy.
 Doporučený plný běh na Macu:
 
 ```bash
-caffeinate -is ./vimm-wii-catalog.sh 2>&1 | tee run.log
+caffeinate -is ./vimm-wii-catalog.sh --gentle 2>&1 | tee run.log
 ```
+
+`--gentle` je 60 s mezi requesty a jeden job. Na ~1700 titulů to je **cca 32
+hodin** — přesnou dobu ti skript vypíše hned, jak zjistí počet stránek:
+
+```
+1712 detail pages to fetch -- about 32.1 hours at 60s apart
+```
+
+Pauza se navíc sama zvyšuje: každé 429 zdvihne minimum pro celý zbytek běhu
+(1 s → 31 → 62 → 124, strop 600 s) a ten limit se sdílí i mezi paralelní workery.
+Cílem je narazit na limiter maximálně jednou, ne ho objevovat u každé stránky.
 
 `caffeinate -is` zabrání uspání stroje uprostřed běhu, `tee` uloží log, ať se
 dá po dokončení zkontrolovat, jestli se objevily 429:

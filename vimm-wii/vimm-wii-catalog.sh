@@ -23,7 +23,10 @@
 #   ./vimm-wii-catalog.sh --self-test          # offline test of the pipeline
 #   ./vimm-wii-catalog.sh --keep-duplicates    # one row per region, no dedup
 #
-# Be nice to the server: the default is one request per second, sequentially.
+# Be nice to the server: one sequential request per second by default, jittered,
+# and any 429 permanently raises the delay for the rest of the run. For a full
+# catalogue use --gentle (60s apart) -- Vimm's limiter trips within a couple of
+# dozen requests at 1s, and waiting is cheaper than being throttled.
 # Everything is cached under .vimm-cache/, so delete that directory (or use
 # --refresh) if you want fresh data.
 
@@ -56,9 +59,11 @@ USE_FILTERS=1
 PRINT_URL=""
 SELF_TEST=0
 
-# Region preference, best first. Matched case-insensitively against the
-# region string; a game listed for several regions gets its best match.
-REGION_PRIORITY="Europe,World,United Kingdom,UK,Great Britain,England,Germany,France,Spain,Italy,Netherlands,Holland,Scandinavia,Sweden,Denmark,Norway,Finland,Portugal,Greece,Poland,Russia,Austria,Switzerland,Belgium,Ireland,Czech,Hungary,Turkey,Australia,New Zealand,USA,United States,Canada,Brazil,Mexico,Latin America,Japan,Korea,Asia,China,Taiwan,Hong Kong"
+# Region preference, best first. Matched case-insensitively against the region
+# string; a title listed for several regions gets its best match, and anything
+# not named here ranks last but is still kept -- a title that exists only in,
+# say, Germany or Korea wins by default, it is never dropped.
+REGION_PRIORITY="Europe,USA,Japan"
 
 REGION_WORDS="USA|United States|Europe|Japan|World|Germany|France|Spain|Italy|Netherlands|Holland|Scandinavia|Sweden|Denmark|Norway|Finland|Portugal|Greece|Poland|Russia|Austria|Switzerland|Belgium|Ireland|Czech|Hungary|Turkey|Australia|New Zealand|Canada|Brazil|Mexico|Latin America|Korea|Asia|China|Taiwan|Hong Kong|United Kingdom|Great Britain|England|UK|Unknown"
 
@@ -81,6 +86,8 @@ Options
                              every regional variant)
       --plain                use the plain /vault/Wii/X listing instead. Beware:
                              it returns far fewer entries per section
+      --gentle               60s between requests, single job -- the setting for a
+                             full run that must not trip the rate limiter at all
       --print-url SECTION    print the list URL for SECTION and exit (debugging)
       --refresh              ignore cached pages and re-download
       --total-row            append a TOTAL row to the CSV as well
@@ -108,6 +115,37 @@ set_scratch() {
 COOKIES="/dev/null"
 CURLERR="/dev/null"
 
+# The delay is adaptive and shared between workers through a file, because each
+# parallel fetch is its own process. Any 429 raises the floor for the REST of the
+# run, so the limiter is backed away from once instead of being rediscovered on
+# every subsequent page.
+current_delay() {
+  _d="$DELAY"
+  if [ -s "$CACHE/delay.floor" ]; then
+    _f=$(cat "$CACHE/delay.floor" 2>/dev/null)
+    case "$_f" in ""|*[!0-9.]*) _f="" ;; esac
+    [ -n "$_f" ] && _d=$(awk -v a="$_d" -v b="$_f" 'BEGIN { print (b > a) ? b : a }')
+  fi
+  printf '%s' "$_d"
+}
+
+raise_delay_floor() {
+  _cur=$(current_delay)
+  _new=$(awk -v d="$_cur" 'BEGIN {
+    n = d * 2; if (n < d + 30) n = d + 30; if (n > 600) n = 600; printf "%.0f", n
+  }')
+  printf '%s\n' "$_new" >"$CACHE/delay.floor"
+  warn "raising the delay floor to ${_new}s for the rest of the run"
+}
+
+# Jittered, so the request pattern is not a metronome.
+polite_sleep() {
+  _d=$(current_delay)
+  case "$_d" in 0|0.0|"") return 0 ;; esac
+  sleep "$(awk -v d="$_d" -v r="${RANDOM:-0}" \
+    'BEGIN { printf "%.2f", d * (1 + 0.25 * (r / 32767)) }')"
+}
+
 # http_get URL OUTFILE -- retries with exponential backoff, honours $DELAY.
 http_get() {
   _url="$1"; _out="$2"
@@ -126,7 +164,7 @@ http_get() {
     case "$_code" in
       200)
         mv "$_out.part" "$_out"
-        case "$DELAY" in 0|0.0|"") : ;; *) sleep "$DELAY" ;; esac
+        polite_sleep
         return 0
         ;;
       404|410)
@@ -140,7 +178,8 @@ http_get() {
         return 1
         ;;
       429|503)
-        _wait=$((10 * _try))
+        raise_delay_floor
+        _wait=$(current_delay)
         warn "$_code for $_disp -- rate limited, waiting ${_wait}s"
         sleep "$_wait"
         ;;
@@ -544,6 +583,7 @@ while [ $# -gt 0 ]; do
     --filters)            USE_FILTERS=1; shift ;;
     --plain)              USE_FILTERS=0; shift ;;
     --print-url)          PRINT_URL="$2"; shift 2 ;;
+    --gentle)             DELAY=60; JOBS=1; shift ;;
     --refresh)            REFRESH=1; shift ;;
     --total-row)          TOTAL_ROW=1; shift ;;
     --self-test)          SELF_TEST=1; shift ;;
@@ -996,7 +1036,13 @@ if [ "$LIMIT" -gt 0 ]; then
 else
   cp "$WORK/ids.all" "$WORK/ids.txt"
 fi
-printf '%s detail pages to fetch\n' "$(wc -l <"$WORK/ids.txt" | tr -d ' ')" >&2
+_todo=$(wc -l <"$WORK/ids.txt" | tr -d ' ')
+awk -v n="$_todo" -v d="$(current_delay)" -v j="$JOBS" 'BEGIN {
+  secs = n * d * 1.125 / (j < 1 ? 1 : j)
+  printf "%d detail pages to fetch -- about %.1f hours at %ss apart", n, secs / 3600, d
+  if (j > 1) printf " across %d jobs", j
+  printf "\n"
+}' >&2
 
 if [ "$KEEP_DUPES" -eq 1 ]; then
   fetch_ids "$WORK/ids.txt"
