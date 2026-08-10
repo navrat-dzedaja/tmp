@@ -25,10 +25,9 @@ prolistování výpisů, ještě než začne stahovat detaily:
 1874 detail pages to fetch
 ```
 
-To druhé číslo je počet requestů. Při výchozí pauze 1 s je doba běhu prakticky
-`počet detailů` sekund (tedy ~30 min na 1800 her), `-j 2` to půlí. Měřeno na
-sekci G: ze 133 záznamů výpisu zbylo 80 titulů, deduplikace tedy ušetří ~40 %
-stahování.
+To druhé číslo je počet requestů, a od verze s `--gentle` si skript hned spočítá
+i dobu běhu. Na plný katalog používej `--gentle` (viz sekci o rate limitingu) —
+při výchozí 1 s Vimm limiter sepne po dvou desítkách requestů.
 Všechno se cachuje do `.vimm-cache/`, takže **přerušený běh můžeš prostě spustit
 znovu a pokračuje tam, kde skončil**. Opakovaný běh nad plnou cache je otázka
 sekund.
@@ -84,7 +83,7 @@ když si sloupec `size_gb` sečteš v Excelu, vyjde ti přesně stejné číslo.
 
 Hry, které existují pro víc regionů, se sloučí na jeden řádek, a to **ještě před
 stahováním detailů** — výpis už obsahuje název, region i verzi, takže se stahuje
-jen vítěz každého titulu. U sekce G to znamená ~48 requestů místo 126.
+jen vítěz každého titulu. Měřeno na sekci G: 133 záznamů výpisu → 80 titulů, tedy o ~40 % méně stahování.
 Kdyby stránka vítěze nešla stáhnout (404, vzdání se po retry), vezme se druhá
 nejlepší regionální varianta, aby se titul neztratil úplně (max 3 kola). Vítěz se vybírá
 podle pořadí **Europe → USA → Japan → cokoli dalšího**. Při stejném regionu
