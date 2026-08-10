@@ -91,7 +91,7 @@ u Wii katalogu to prakticky nenastává, ale `--keep-duplicates` ti ukáže vše
 ## Ověření a ladění
 
 `--self-test` postaví fixture HTML stránky, prohoní je celým řetězcem
-(parse → dedup → CSV → součet) a zkontroluje 46 tvrzení: parsování názvu,
+(parse → dedup → CSV → součet) a zkontroluje 48 tvrzení: parsování názvu,
 regionu, vydavatele, seriálu, hodnocení, převod MB→GB, že Evropa přebije USA
 i Japonsko, CSV quoting i výsledný součet. Běží offline.
 

@@ -658,7 +658,12 @@ resolve_winners() {
     _round=$((_round + 1))
   done
 
-  # what each winner beat, for the duplicates_dropped column
+  build_dropped
+}
+
+# What each winner beat, for the duplicates_dropped column. Reads the winners
+# from resolved.tsv (norm, id) and the losers from candidates.tsv.
+build_dropped() {
   awk -F'\t' -v OFS='\t' -v rf="$WORK/resolved.tsv" '
     FILENAME == rf { win[$1] = $2; next }
     !($1 in win) { next }
@@ -672,6 +677,17 @@ resolve_winners() {
     }
     END { for (k in drop) print k, drop[k] }
   ' "$WORK/resolved.tsv" "$WORK/candidates.tsv" >"$WORK/dropped.tsv"
+}
+
+# --limit slices the winner list, so there is no fallback round to run -- but the
+# ranking still knows what each sliced winner beat, and throwing that away left
+# duplicates_dropped blank on every --limit run.
+synth_resolved() {
+  awk -F'\t' -v OFS='\t' -v idf="$WORK/ids.txt" '
+    FILENAME == idf { keep[$1] = 1; next }
+    $2 == 1 && keep[$3]  { print $1, $3 }
+  ' "$WORK/ids.txt" "$WORK/candidates.tsv" >"$WORK/resolved.tsv"
+  build_dropped
 }
 
 # Attach the dropped-variant list to the parsed winner rows.
@@ -889,6 +905,18 @@ EOF
   chk "dropped recorded2" "$(awk -F'\t' '$1==101{print $2}' "$WORK/dropped.tsv")" \
                           "Ghostbusters: The Video Game (USA) v1.1 #102"
 
+  # --limit slices the winners, but must still report what each one beat
+  printf '%s\n' \
+    "101	Ghostbusters: The Video Game	Europe	1.0" \
+    "102	Ghostbusters: The Video Game	USA	1.1" \
+    "105	Geon Cube	USA	1.0" >"$WORK/index.tsv"
+  build_candidates
+  printf '101\n' >"$WORK/ids.txt"
+  synth_resolved
+  chk "limit keeps drops" "$(awk -F'\t' '$1==101{print $2}' "$WORK/dropped.tsv")" \
+                          "Ghostbusters: The Video Game (USA) v1.1 #102"
+  chk "limit skips rest"  "$(wc -l <"$WORK/resolved.tsv" | tr -d ' ')" "1"
+
   # fallback: winner 106 has no cached page, so rank 2 (id 105) must win
   printf '%s\n' \
     "106	Geon Cube	Europe	1.0" \
@@ -970,9 +998,13 @@ else
 fi
 printf '%s detail pages to fetch\n' "$(wc -l <"$WORK/ids.txt" | tr -d ' ')" >&2
 
-if [ "$KEEP_DUPES" -eq 1 ] || [ "$LIMIT" -gt 0 ]; then
-  # --limit takes a flat slice, so the multi-round winner fallback does not apply
+if [ "$KEEP_DUPES" -eq 1 ]; then
   fetch_ids "$WORK/ids.txt"
+elif [ "$LIMIT" -gt 0 ]; then
+  # a flat slice of the winners: no fallback round applies, but the ranking's
+  # dropped-variant information is still valid and worth keeping
+  fetch_ids "$WORK/ids.txt"
+  synth_resolved
 else
   resolve_winners
   cut -f2 "$WORK/resolved.tsv" | LC_ALL=C sort -u -n >"$WORK/ids.txt"
@@ -986,7 +1018,7 @@ parse_details
 # audit trail: size_gb, id, name, which rule found the size
 cut -f4,5,6,19 "$WORK/rows.tsv" >"$WORK/size-source.tsv"
 
-if [ "$KEEP_DUPES" -eq 1 ] || [ "$LIMIT" -gt 0 ]; then
+if [ "$KEEP_DUPES" -eq 1 ]; then
   dedup_rows          # nothing was pre-deduped, fall back to row-level dedup
 else
   join_dropped
