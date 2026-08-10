@@ -17,10 +17,18 @@ chmod +x vimm-wii-catalog.sh
 ./vimm-wii-catalog.sh                      # plný běh -> wii_games.csv
 ```
 
-Kolik to je requestů: filtrovaný výpis vrací všechny regionální varianty (sekce
-G sama 126 záznamů), ale díky deduplikaci před stahováním se tahá jen vítěz
-každého titulu. Při 1 req/s počítej hodiny, ne minuty — `-j 2` to zkrátí na
-polovinu.
+**Jak dlouho to bude trvat** si nemusíš odhadovat — skript to řekne sám po
+prolistování výpisů, ještě než začne stahovat detaily:
+
+```
+133 list entries -> 80 distinct titles (53 regional duplicates skipped)
+1874 detail pages to fetch
+```
+
+To druhé číslo je počet requestů. Při výchozí pauze 1 s je doba běhu prakticky
+`počet detailů` sekund (tedy ~30 min na 1800 her), `-j 2` to půlí. Měřeno na
+sekci G: ze 133 záznamů výpisu zbylo 80 titulů, deduplikace tedy ušetří ~40 %
+stahování.
 Všechno se cachuje do `.vimm-cache/`, takže **přerušený běh můžeš prostě spustit
 znovu a pokračuje tam, kde skončil**. Opakovaný běh nad plnou cache je otázka
 sekund.
@@ -196,6 +204,20 @@ cache v `.vimm-cache/` znamená, že běh můžeš kdykoli přerušit `Ctrl-C` a
 den pustit znovu — pokračuje tam, kde skončil, takže se to dá rozložit na víc
 sezení. Když narazíš na 429 i doma, zvyš pauzu (`-d 2` nebo `-d 3`); je to
 paradoxně rychlejší než sbírat backoffy.
+
+Doporučený plný běh na Macu:
+
+```bash
+caffeinate -is ./vimm-wii-catalog.sh 2>&1 | tee run.log
+```
+
+`caffeinate -is` zabrání uspání stroje uprostřed běhu, `tee` uloží log, ať se
+dá po dokončení zkontrolovat, jestli se objevily 429:
+
+```bash
+grep -c 'rate limited' run.log      # 0 = limiter vůbec nezasáhl
+cut -f4 .vimm-cache/work/size-source.tsv | sort | uniq -c | sort -rn
+```
 
 ## Buď slušný
 
