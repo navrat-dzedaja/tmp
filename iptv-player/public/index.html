@@ -49,6 +49,16 @@
     </div>
 
     <div class="stage-controls" id="stageControls">
+      <button class="icon-btn" id="btnPlay" title="Přehrát / pozastavit (mezerník)">
+        <svg viewBox="0 0 24 24" class="i-play"><path d="M7 4.5v15l13-7.5z"/></svg>
+        <svg viewBox="0 0 24 24" class="i-pause"><path d="M8 4.5h3.5v15H8zM12.5 4.5H16v15h-3.5z"/></svg>
+      </button>
+      <button class="icon-btn" id="btnStop" title="Zastavit (S)">
+        <svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2"/></svg>
+      </button>
+      <button class="live-btn" id="btnLive" title="Skočit na živé vysílání (L)">
+        <i></i><span>ŽIVĚ</span>
+      </button>
       <button class="icon-btn" id="btnMute" title="Ztlumit (M)">
         <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7" class="wave"/></svg>
       </button>
@@ -153,7 +163,9 @@
     <h3>Nastavení</h3>
 
     <label class="field">
-      <span>Playlisty (m3u) — jeden na řádek, volitelně <code>Název | URL</code></span>
+      <span>Playlisty (m3u) — jeden na řádek: <code>Název | URL | Skupina, Jiná, !Nechtěná</code><br>
+        Třetí část je nepovinná; bez ní se zobrazí všechny skupiny.
+        <code>*</code> zastupuje libovolný text, <code>!</code> skupinu vyloučí.</span>
       <textarea id="setPlaylists" rows="4" spellcheck="false"></textarea>
     </label>
 
@@ -162,12 +174,18 @@
       <textarea id="setEpgs" rows="3" spellcheck="false"></textarea>
     </label>
 
+    <label class="field">
+      <span>Název kategorie oblíbených</span>
+      <input class="text-field" id="setFavName" type="text" placeholder="Oblíbené" spellcheck="false">
+    </label>
+
     <div class="field inline">
       <label class="check"><input type="checkbox" id="setAutoplay"> Automaticky spustit poslední kanál</label>
       <label class="check"><input type="checkbox" id="setProxy" checked> Přehrávat přes proxy serveru (řeší CORS)</label>
     </div>
 
     <div class="sheet-actions">
+      <button class="btn ghost" id="setFromEnv" hidden>Načíst z .env</button>
       <button class="btn ghost" id="setReload">Obnovit data</button>
       <button class="btn primary" id="setSave">Uložit a načíst</button>
     </div>

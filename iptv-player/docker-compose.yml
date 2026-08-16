@@ -3,9 +3,13 @@ services:
     build: .
     container_name: tivi-web
     ports:
-      - "8098:8098"
+      - "${PORT:-8098}:8098"
     environment:
       # Some providers only answer to a player-ish User-Agent.
-      UPSTREAM_UA: "VLC/3.0.20 LibVLC/3.0.20"
+      UPSTREAM_UA: "${UPSTREAM_UA:-VLC/3.0.20 LibVLC/3.0.20}"
       PORT: "8098"
+    # Playlists, EPG sources and group filters live in .env — see .env.example.
+    env_file:
+      - path: .env
+        required: false
     restart: unless-stopped

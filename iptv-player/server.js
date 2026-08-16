@@ -313,6 +313,38 @@ app.get('/stream', async (req, res) => {
   body.pipe(res);
 });
 
+// ---------------------------------------------------------------------------
+// configuration from the environment (.env via docker compose)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads PLAYLIST_<n>_URL / _NAME / _GROUPS and EPG_<n>_URL into the same
+ * "name | url | groups" lines the settings dialog uses, so both paths agree.
+ */
+function envConfig() {
+  const playlists = [];
+  const epgs = [];
+  for (let i = 1; i <= 30; i++) {
+    const url = (process.env[`PLAYLIST_${i}_URL`] || '').trim();
+    if (!url) continue;
+    const name = (process.env[`PLAYLIST_${i}_NAME`] || '').trim();
+    const groups = (process.env[`PLAYLIST_${i}_GROUPS`] || '').trim();
+    playlists.push(`${name} | ${url}${groups ? ' | ' + groups : ''}`.trim());
+  }
+  for (let i = 1; i <= 30; i++) {
+    const url = (process.env[`EPG_${i}_URL`] || '').trim();
+    if (url) epgs.push(url);
+  }
+  return {
+    playlists: playlists.join('\n'),
+    epgs: epgs.join('\n'),
+    favoritesName: (process.env.FAVORITES_NAME || '').trim(),
+    fromEnv: playlists.length > 0,
+  };
+}
+
+app.get('/api/config', (_req, res) => res.json(envConfig()));
+
 app.get('/api/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
 // A single misbehaving stream must never take the whole player down.

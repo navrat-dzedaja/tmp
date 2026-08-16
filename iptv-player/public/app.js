@@ -10,7 +10,10 @@ const LS = {
   settings: 'tivi.settings',
   favs: 'tivi.favs',
   last: 'tivi.last',
+  override: 'tivi.override', // set once the user saves settings by hand
 };
+
+let serverConfig = null; // whatever .env defined, via /api/config
 
 const DEFAULT_SETTINGS = {
   playlists: 'BCU Media | https://bcumedia.su/playlist/hls/ucbaaspl8i.m3u',
@@ -19,9 +22,13 @@ const DEFAULT_SETTINGS = {
   proxy: true,
 };
 
-const PX_PER_MIN = 6;          // guide horizontal scale
 const GUIDE_SPAN_H = 30;       // hours rendered in the guide
-const HOUR_PX = 60 * PX_PER_MIN;
+// Horizontal scale of the guide. Phones get a tighter one so a useful stretch
+// of the evening fits on screen instead of ~40 minutes.
+let PX_PER_MIN = 6;
+const scaleGuide = () => { PX_PER_MIN = window.innerWidth <= 820 ? 3 : 6; };
+scaleGuide();
+const hourPx = () => 60 * PX_PER_MIN;
 
 const state = {
   settings: { ...DEFAULT_SETTINGS },
@@ -87,20 +94,47 @@ function loadSettings() {
 const saveSettings = () => localStorage.setItem(LS.settings, JSON.stringify(state.settings));
 const saveFavs = () => localStorage.setItem(LS.favs, JSON.stringify([...state.favs]));
 
+/**
+ * Each line is `url`, `Name | url`, or `Name | url | Group, Other, !Excluded`.
+ * The URL is located by its scheme, so an empty name is fine.
+ */
 function parseLines(text) {
   return String(text || '')
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
-    .map((l) => {
-      const i = l.indexOf('|');
-      if (i !== -1 && /^https?:/i.test(l.slice(i + 1).trim())) {
-        return { name: l.slice(0, i).trim(), url: l.slice(i + 1).trim() };
-      }
-      return { name: '', url: l };
+    .map((line) => {
+      const parts = line.split('|').map((s) => s.trim());
+      const ui = parts.findIndex((p) => /^https?:\/\//i.test(p));
+      if (ui === -1) return null;
+      return {
+        name: parts.slice(0, ui).join(' ').trim(),
+        url: parts[ui],
+        groups: parts.slice(ui + 1).join(',').trim(),
+      };
     })
-    .filter((e) => /^https?:/i.test(e.url));
+    .filter(Boolean);
 }
+
+/** `Sport, Docu*, !18+` -> predicate over a channel's group-title. */
+function makeGroupFilter(spec) {
+  const terms = String(spec || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!terms.length) return null;
+  const toRe = (p) =>
+    new RegExp('^' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*') + '$', 'i');
+  const include = [], exclude = [];
+  for (const t of terms) {
+    if (t.startsWith('!')) exclude.push(toRe(t.slice(1).trim()));
+    else include.push(toRe(t));
+  }
+  return (group) => {
+    const g = group || '';
+    if (exclude.some((re) => re.test(g))) return false;
+    return include.length ? include.some((re) => re.test(g)) : true;
+  };
+}
+
+const favName = () => (state.settings.favoritesName || '').trim() || 'Oblíbené';
 
 // ── data loading ──────────────────────────────────────────────────────────
 
@@ -126,14 +160,17 @@ async function loadAll({ silent = false } = {}) {
 
   const chans = [];
   const errs = [];
-  for (const r of results) {
-    if (r.status === 'fulfilled') {
-      for (const c of r.value.data.channels) chans.push({ ...c, id: chans.length, src: r.value.src });
-    } else {
-      errs.push(r.reason.message || String(r.reason));
+  let dropped = 0;
+  results.forEach((r, i) => {
+    if (r.status !== 'fulfilled') { errs.push(r.reason.message || String(r.reason)); return; }
+    const keep = makeGroupFilter(pls[i].groups);
+    for (const c of r.value.data.channels) {
+      if (keep && !keep(c.group)) { dropped++; continue; }
+      chans.push({ ...c, id: chans.length, src: r.value.src });
     }
-  }
+  });
   state.channels = chans;
+  state.dropped = dropped;
   if (errs.length) toast('Playlist se nepodařilo načíst: ' + errs[0], 5000);
 
   buildGroups();
@@ -241,7 +278,7 @@ function renderGroups() {
   const favN = state.favs.size;
   const items = [
     ['all', 'Vše', state.channels.length],
-    ...(favN ? [['fav', '★ Oblíbené', favN]] : []),
+    ...(favN ? [['fav', '★ ' + favName(), favN]] : []),
     ...groupList.map(([g, n]) => [g, g, n]),
   ];
   $('groups').innerHTML = items
@@ -314,7 +351,13 @@ function initList() {
     rowH = parseInt(v) || 62;
   };
   measure();
-  window.addEventListener('resize', () => { measure(); renderList(); });
+  window.addEventListener('resize', () => {
+    measure();
+    renderList();
+    const before = PX_PER_MIN;
+    scaleGuide();
+    if (state.guideOpen && before !== PX_PER_MIN) renderGuide(); // rotated the phone
+  });
 }
 
 function rowHtml(c, i) {
@@ -587,8 +630,71 @@ function updateOsd(force = false) {
 
 $('stage').addEventListener('mousemove', () => { if (state.current !== -1) flashOsd(3500); });
 $('stage').addEventListener('dblclick', toggleFs);
+// touch devices get no mousemove, so a tap on the picture reveals the info bar
+video.addEventListener('click', () => { if (state.current !== -1) flashOsd(4000); });
 
 // ── controls ──────────────────────────────────────────────────────────────
+
+// ── play / pause / stop / live edge ───────────────────────────────────────
+
+function togglePlay() {
+  if (state.current === -1) return;
+  if (video.paused) video.play().catch(() => {});
+  else video.pause();
+  syncPlayBtn();
+}
+
+function stopPlayback() {
+  destroyHls();
+  video.pause();
+  video.removeAttribute('src');
+  video.srcObject = null;
+  video.load();
+  state.current = -1;
+  $('osd').hidden = true;
+  $('spinner').hidden = true;
+  $('stageError').hidden = true;
+  $('stageEmpty').hidden = false;
+  $('qualityPill').hidden = true;
+  renderList();
+  syncPlayBtn();
+}
+
+/** Furthest point the buffer allows — the live edge for an HLS stream. */
+function liveEdge() {
+  if (hls && hls.liveSyncPosition != null && isFinite(hls.liveSyncPosition)) return hls.liveSyncPosition;
+  if (video.seekable.length) return video.seekable.end(video.seekable.length - 1);
+  return null;
+}
+
+function goLive() {
+  const edge = liveEdge();
+  if (edge != null) video.currentTime = edge;
+  video.play().catch(() => {});
+  syncPlayBtn();
+}
+
+/** How far behind the live edge we are, in seconds. */
+function liveDelay() {
+  const edge = liveEdge();
+  return edge == null ? 0 : Math.max(0, edge - video.currentTime);
+}
+
+function syncPlayBtn() {
+  const playing = !video.paused && state.current !== -1;
+  $('btnPlay').classList.toggle('playing', playing);
+  const behind = state.current !== -1 && (video.paused || liveDelay() > 12);
+  const live = $('btnLive');
+  live.classList.toggle('behind', behind);
+  live.hidden = state.current === -1;
+}
+
+$('btnPlay').addEventListener('click', togglePlay);
+$('btnStop').addEventListener('click', stopPlayback);
+$('btnLive').addEventListener('click', goLive);
+video.addEventListener('play', syncPlayBtn);
+video.addEventListener('pause', syncPlayBtn);
+video.addEventListener('timeupdate', syncPlayBtn);
 
 function toggleFs() {
   const el = $('stage');
@@ -658,8 +764,8 @@ $('gDay').addEventListener('change', (e) => {
   renderGuide();
   guideGrid.scrollLeft = 0;
 });
-$('gPrev').addEventListener('click', () => { guideGrid.scrollLeft -= 2 * HOUR_PX; });
-$('gNext').addEventListener('click', () => { guideGrid.scrollLeft += 2 * HOUR_PX; });
+$('gPrev').addEventListener('click', () => { guideGrid.scrollLeft -= 2 * hourPx(); });
+$('gNext').addEventListener('click', () => { guideGrid.scrollLeft += 2 * hourPx(); });
 $('gNow').addEventListener('click', () => {
   const now = Date.now();
   if (now < state.guideStart || now > state.guideStart + GUIDE_SPAN_H * 36e5) {
@@ -846,20 +952,36 @@ $('dWatch').addEventListener('click', () => { if (detailChan !== -1) { play(deta
 function openSettings() {
   $('setPlaylists').value = state.settings.playlists;
   $('setEpgs').value = state.settings.epgs;
+  $('setFavName').value = state.settings.favoritesName || '';
   $('setAutoplay').checked = !!state.settings.autoplay;
   $('setProxy').checked = !!state.settings.proxy;
-  $('setHint').textContent = '';
+  $('setFromEnv').hidden = !(serverConfig && serverConfig.fromEnv);
+  $('setHint').textContent = state.dropped
+    ? `${state.dropped} kanálů skryto filtrem skupin.` : '';
   $('setBackdrop').hidden = false;
 }
+
+$('setFromEnv').addEventListener('click', async () => {
+  if (!serverConfig || !serverConfig.fromEnv) return;
+  $('setPlaylists').value = serverConfig.playlists;
+  $('setEpgs').value = serverConfig.epgs;
+  if (serverConfig.favoritesName) $('setFavName').value = serverConfig.favoritesName;
+  localStorage.removeItem(LS.override);
+  $('setHint').textContent = 'Načteno z .env — ulož pro použití.';
+});
 $('btnSettings').addEventListener('click', openSettings);
 $('setClose').addEventListener('click', () => ($('setBackdrop').hidden = true));
 $('setBackdrop').addEventListener('click', (e) => { if (e.target.id === 'setBackdrop') $('setBackdrop').hidden = true; });
 $('setSave').addEventListener('click', async () => {
   state.settings.playlists = $('setPlaylists').value;
   state.settings.epgs = $('setEpgs').value;
+  state.settings.favoritesName = $('setFavName').value.trim();
   state.settings.autoplay = $('setAutoplay').checked;
   state.settings.proxy = $('setProxy').checked;
   saveSettings();
+  // from now on the UI wins over .env, until "Načíst z .env" is used
+  localStorage.setItem(LS.override, '1');
+  renderGroups();
   $('setHint').textContent = 'Načítám…';
   $('setBackdrop').hidden = true;
   await loadAll();
@@ -897,6 +1019,9 @@ document.addEventListener('keydown', (e) => {
     case 'g': case 'G':
       state.guideOpen ? closeGuide() : openGuide();
       break;
+    case ' ': e.preventDefault(); togglePlay(); break;
+    case 's': case 'S': stopPlayback(); break;
+    case 'l': case 'L': goLive(); break;
     case 'f': case 'F': toggleFs(); break;
     case 'm': case 'M': $('btnMute').click(); break;
     case 'p': case 'P': $('btnPip').click(); break;
@@ -938,10 +1063,28 @@ setInterval(() => {
 
 // ── boot ──────────────────────────────────────────────────────────────────
 
+/**
+ * .env supplies the defaults. Once the user saves settings in the UI those win,
+ * until they explicitly pull the .env values back in.
+ */
+async function applyServerConfig() {
+  try {
+    const r = await fetch('/api/config');
+    if (!r.ok) return;
+    serverConfig = await r.json();
+  } catch { return; }
+  if (!serverConfig.fromEnv || localStorage.getItem(LS.override)) return;
+  state.settings.playlists = serverConfig.playlists;
+  if (serverConfig.epgs) state.settings.epgs = serverConfig.epgs;
+  if (serverConfig.favoritesName) state.settings.favoritesName = serverConfig.favoritesName;
+}
+
 (async function boot() {
   loadSettings();
   initList();
   video.volume = 1;
+  syncPlayBtn();
+  await applyServerConfig();
 
   if (!window.Hls && window.__hlsFailed) {
     // vendored copy missing — fall back to the CDN build

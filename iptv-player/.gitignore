@@ -1,2 +1,5 @@
 node_modules/
 npm-debug.log*
+
+# May hold private playlist URLs / tokens — keep it local.
+.env

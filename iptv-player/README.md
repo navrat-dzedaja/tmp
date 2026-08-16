@@ -54,6 +54,9 @@ Totéž funguje i v TV průvodci (`G`), kde je na výsledky víc místa.
 
 **Přehrávání**
 - HLS přes hls.js, adaptivní kvalita, na Safari nativně
+- Přehrát / pozastavit, zastavit, a tlačítko **ŽIVĚ** pro skok na živou hranu —
+  když se pauzou nebo zaseknutím opozdíš, tlačítko zčervená a jedním klepnutím
+  tě vrátí do přímého přenosu
 - Hlasitost, ztlumení, obraz v obraze, celá obrazovka
 - Info lišta s kanálem, pořadem, průběhem a „Pak:" následujícím pořadem
 
@@ -65,25 +68,71 @@ Totéž funguje i v TV průvodci (`G`), kde je na výsledky víc místa.
 | `G` | TV průvodce |
 | `↑` `↓` | pohyb v seznamu, `Enter` přehrát |
 | `PgUp` `PgDn` | skok po 10 kanálech |
+| `mezerník` | přehrát / pozastavit |
+| `S` | zastavit |
+| `L` | skok na živé vysílání |
 | `F` | celá obrazovka |
 | `M` | ztlumit |
 | `P` | obraz v obraze |
 | `I` | info lišta |
 | `Esc` | zavřít / skrýt seznam |
 
-Rozhraní je responzivní — na mobilu je video nahoře a seznam pod ním.
+**Na telefonu**
 
-## Vlastní playlisty a EPG
+Video nahoře v poměru 16:9 (žádné černé pruhy navíc), seznam pod ním.
+Klepnutí na obraz vyvolá info lištu, dvojklik přepne na celou obrazovku.
+Dlouhé názvy pořadů se zalamují do dvou řádků místo oříznutí.
+TV průvodce má na telefonu hustší časovou osu, takže je vidět zhruba
+hodina a půl programu místo tři čtvrtě hodiny.
 
-Ozubené kolečko vpravo nahoře. Zadává se jeden zdroj na řádek, volitelně
-s vlastním názvem:
+## Konfigurace přes .env
+
+Zkopíruj `.env.example` jako `.env` — `docker compose` ho načte sám:
+
+```bash
+cp .env.example .env
+# uprav, pak:
+docker compose up -d
+```
+
+```env
+PLAYLIST_1_NAME=BCU Media
+PLAYLIST_1_URL=https://bcumedia.su/playlist/hls/ucbaaspl8i.m3u
+PLAYLIST_1_GROUPS=Sport*, Czech*, !18+
+
+EPG_1_URL=https://epg.bcumedia.pro/epg.xml
+FAVORITES_NAME=Moje oblíbené
+```
+
+**Výběr skupin** dělá `PLAYLIST_<n>_GROUPS`. Když ho vynecháš, zobrazí se
+všechny. Jinak platí:
+
+| Zápis | Význam |
+|---|---|
+| `Sport` | přesně tato skupina (nezáleží na velikosti písmen) |
+| `Nova*` | vše, co začíná na „Nova" |
+| `!18+` | tuhle skupinu vyloučit |
+
+Uvedené se kombinuje — `Sport*, Czech*, !18+` znamená „sportovní a české
+skupiny, ale nic z 18+". Názvy skupin uvidíš jako štítky nad seznamem kanálů.
+
+`FAVORITES_NAME` pojmenuje kategorii oblíbených; bez něj se jmenuje
+„Oblíbené". Jde nastavit i v GUI.
+
+`.env` je v `.gitignore`, protože playlist URL bývá osobní.
+
+## Vlastní playlisty a EPG z GUI
+
+Ozubené kolečko vpravo nahoře. Jeden zdroj na řádek, ve stejném tvaru:
 
 ```
-Moje IPTV | http://neco/playlist.m3u
+Moje IPTV | http://neco/playlist.m3u | Sport*, !18+
 http://jine/playlist.m3u
 ```
 
 Více playlistů se sloučí do jednoho seznamu, více EPG zdrojů taky.
+Jakmile v GUI něco uložíš, má přednost před `.env`; tlačítkem
+**Načíst z .env** se vrátíš zpět k souboru.
 EPG se páruje na kanály přes `tvg-id`, a když ten chybí, podle názvu kanálu
 (ignoruje se `HD`/`4K` a podobné přípony). Podporuje i gzipované `.xml.gz`.
 
