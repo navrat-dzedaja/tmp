@@ -512,6 +512,25 @@ function destroyHls() {
   if (hls) { try { hls.destroy(); } catch {} hls = null; }
 }
 
+/**
+ * hls.js reports a terse `details` code; the useful part is what the provider
+ * actually answered, which the proxy passes through in the response body.
+ */
+function describeHlsError(d) {
+  const code = d.response && d.response.code;
+  const body = d.response && String(d.response.text || '').replace(/\s+/g, ' ').trim();
+  const what = d.details === 'manifestLoadError' ? 'Kanál nelze načíst'
+    : d.details === 'fragLoadError' ? 'Nelze stáhnout video'
+    : d.details || d.type;
+  if (code === 403) {
+    return `${what} — poskytovatel odmítl přístup (403). Stanice zřejmě není v tvém balíčku nebo vypršel token.` +
+      (body ? ` [${body.slice(0, 140)}]` : '');
+  }
+  if (code === 404) return `${what} — zdroj u poskytovatele neexistuje (404). Stanice je nejspíš dočasně mimo provoz.`;
+  if (code) return `${what} — server odpověděl ${code}${body ? `: ${body.slice(0, 140)}` : ''}`;
+  return what;
+}
+
 function showError(msg) {
   $('spinner').hidden = true;
   // Live streams routinely emit fatal errors that hls.js recovers from on its
@@ -532,6 +551,7 @@ function play(chanIdx, { quiet = false } = {}) {
   $('spinner').hidden = false;
   renderList();
   updateOsd(true);
+  wakeControls();
 
   const src = streamUrl(c.url);
   destroyHls();
@@ -562,11 +582,22 @@ function play(chanIdx, { quiet = false } = {}) {
       if (lv && lv.height) { pill.textContent = lv.height + 'p'; pill.hidden = false; }
       else pill.hidden = true;
     });
+    let netRetries = 0;
     hls.on(Hls.Events.ERROR, (_e, data) => {
       if (!data.fatal) return;
-      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-      else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-      else { destroyHls(); showError(`${data.details || data.type}`); }
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        // A refusal or a missing source will not become true by asking again;
+        // only transient failures are worth retrying.
+        const code = data.response && data.response.code;
+        const definitive = code === 401 || code === 403 || code === 404 || code === 410;
+        if (definitive || ++netRetries > 3) { destroyHls(); showError(describeHlsError(data)); return; }
+        hls.startLoad();
+      } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
+      } else {
+        destroyHls();
+        showError(describeHlsError(data));
+      }
     });
   } else {
     video.src = src;
@@ -628,10 +659,41 @@ function updateOsd(force = false) {
   }
 }
 
-$('stage').addEventListener('mousemove', () => { if (state.current !== -1) flashOsd(3500); });
-$('stage').addEventListener('dblclick', toggleFs);
-// touch devices get no mousemove, so a tap on the picture reveals the info bar
-video.addEventListener('click', () => { if (state.current !== -1) flashOsd(4000); });
+// ── control bar auto-hide ─────────────────────────────────────────────────
+
+const stageEl = $('stage');
+let idleTimer;
+
+/** Reveal the controls, then fade them out once playback is left alone. */
+function wakeControls(ms = 3200) {
+  stageEl.classList.add('controls-on');
+  stageEl.classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    // keep them up whenever there is nothing playing to get back to
+    if (state.current === -1 || video.paused) return;
+    if (stageEl.contains(document.activeElement)) return;
+    stageEl.classList.remove('controls-on');
+    stageEl.classList.add('idle');
+  }, ms);
+}
+
+stageEl.addEventListener('mousemove', () => {
+  wakeControls();
+  if (state.current !== -1) flashOsd(3500);
+});
+stageEl.addEventListener('mouseleave', () => wakeControls(600));
+stageEl.addEventListener('dblclick', toggleFs);
+// touch devices get no mousemove, so a tap reveals the bar and the info strip
+video.addEventListener('click', () => {
+  wakeControls(4000);
+  if (state.current !== -1) flashOsd(4000);
+});
+// interacting with a control should not let it vanish underneath the pointer
+$('stageControls').addEventListener('pointerdown', () => wakeControls());
+$('stageControls').addEventListener('click', () => wakeControls());
+video.addEventListener('pause', () => wakeControls());
+video.addEventListener('play', () => wakeControls());
 
 // ── controls ──────────────────────────────────────────────────────────────
 
