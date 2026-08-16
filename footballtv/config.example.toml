@@ -1,0 +1,84 @@
+# footballtv configuration — copy to config.toml and edit.
+# Every value here is optional; the defaults are what you get with no config file.
+
+[general]
+days_ahead = 14              # how far into the future to scan
+days_back = 0                # include recent past (useful for catch-up)
+timezone = "Europe/Prague"   # only affects how `footballtv list` prints times
+include_repeats = false      # keep programmes the EPG marks as repeats
+dedupe_window_hours = 6      # collapse the same episode aired on SD/HD/+1 channels
+cache_hours = 6              # re-use downloaded EPG files for this long
+
+# Optional channel filters, applied before show rules. Case-insensitive globs
+# tested against the channel id and its display names.
+# channel_allowlist = ["*bbc*", "*sky sports*", "*oneplay*", "*cbs*"]
+channel_blocklist = ["*+1*", "*_plus1*"]
+
+[calendar]
+name = "Football on TV"
+description = "Football magazines and analysis shows from TV listings"
+reminder_minutes = 15        # 0 disables alarms
+event_prefix = "⚽ "          # prepended to every event title
+output = "football.ics"
+
+[google]
+calendar_id = "primary"      # or the id of a dedicated calendar
+
+# --- EPG sources ------------------------------------------------------------
+# Any XMLTV file works: a URL (plain or .gz) or a local `path`. These four
+# public feeds cover BBC, Sky Sports, TNT Sports, CBS Golazo, ESPN, Fox and
+# Oneplay Sport. Drop the ones you do not need — they are large downloads.
+
+[[sources]]
+name = "uk"
+type = "xmltv"
+url = "https://epgshare01.online/epgshare01/epg_ripper_UK1.xml.gz"
+
+[[sources]]
+name = "us"
+type = "xmltv"
+url = "https://epgshare01.online/epgshare01/epg_ripper_US1.xml.gz"
+
+[[sources]]
+name = "us-sports"
+type = "xmltv"
+url = "https://epgshare01.online/epgshare01/epg_ripper_US_SPORTS1.xml.gz"
+
+[[sources]]
+name = "cz"
+type = "xmltv"
+url = "https://epgshare01.online/epgshare01/epg_ripper_CZ1.xml.gz"
+
+# A locally generated guide, e.g. from the iptv-org grabber:
+#   npx epg-grabber --config=sites/sky.com/sky.com.config.js --output=guide.xml
+# [[sources]]
+# name = "local"
+# type = "xmltv"
+# path = "./guide.xml"
+
+# The BBC's own schedule data — better episode titles and synopses than XMLTV.
+# [[sources]]
+# name = "bbc"
+# type = "bbc"
+
+# --- Shows ------------------------------------------------------------------
+
+[show_catalogue]
+use_builtin = true
+# Limit to the broadcasters you care about. Available groups:
+#   bbc, sky, tnt, cbs, nbc, espn, fox, plp, cz
+groups = ["bbc", "sky", "tnt", "cbs", "nbc", "espn", "fox", "plp", "cz"]
+
+# Add your own. `pattern` is a case-insensitive regex against the title.
+# A [[shows]] entry whose name matches a built-in one replaces it.
+# [[shows]]
+# name = "Tiki-Taka"
+# pattern = "^tiki[\\s-]?taka\\b"
+# channels = ["*oneplay*", "*o2 tv sport*"]
+# group = "cz"
+
+# [[shows]]
+# name = "Vecernik CL"
+# pattern = "^ligy mistr[uů]"
+# match_subtitle = true   # test the pattern against "Title: Subtitle"
+# min_minutes = 20        # ignore short stings and trailers

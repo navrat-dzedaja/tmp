@@ -1,0 +1,65 @@
+name: Update football calendar
+
+# Regenerates football.ics twice a day and publishes it to GitHub Pages, so
+# Proton Calendar / Google Calendar / Apple Calendar can subscribe to a stable
+# URL and pick up new listings on their own.
+
+on:
+  schedule:
+    - cron: "17 5,17 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: football-calendar
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate calendar
+        working-directory: footballtv
+        run: |
+          # Falls back to the example config so the workflow runs out of the box.
+          config=config.toml
+          [ -f "$config" ] || config=config.example.toml
+          mkdir -p ../_site
+          python -m footballtv --config "$config" ics --output ../_site/football.ics
+          python -m footballtv --config "$config" list > ../_site/listing.txt
+
+      - name: Build index page
+        run: |
+          count=$(grep -c 'BEGIN:VEVENT' _site/football.ics || echo 0)
+          cat > _site/index.html <<HTML
+          <!doctype html><meta charset="utf-8">
+          <title>Football on TV</title>
+          <h1>Football on TV</h1>
+          <p>$count events, updated $(date -u '+%Y-%m-%d %H:%M UTC').</p>
+          <p>Subscribe to <a href="football.ics">football.ics</a>
+             or read the <a href="listing.txt">plain listing</a>.</p>
+          HTML
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

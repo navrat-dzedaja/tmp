@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "footballtv"
+version = "1.0.0"
+description = "Find football magazine shows in TV listings and put them in your calendar"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = []
+
+[project.scripts]
+footballtv = "footballtv.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["footballtv*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
