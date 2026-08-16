@@ -1,0 +1,11 @@
+services:
+  tivi-web:
+    build: .
+    container_name: tivi-web
+    ports:
+      - "8098:8098"
+    environment:
+      # Some providers only answer to a player-ish User-Agent.
+      UPSTREAM_UA: "VLC/3.0.20 LibVLC/3.0.20"
+      PORT: "8098"
+    restart: unless-stopped

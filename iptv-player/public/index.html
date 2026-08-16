@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>Tivi Web</title>
+<link rel="preconnect" href="/">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%233ea6ff'/><path d='M8 12h16v11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z' fill='%230b0e14'/><path d='m11 7 5 4 5-4' stroke='%230b0e14' stroke-width='2.5' fill='none' stroke-linecap='round'/></svg>">
+</head>
+<body>
+
+<div id="app" class="app">
+
+  <!-- ───────────────────────── Player layer ───────────────────────── -->
+  <div class="stage" id="stage">
+    <video id="video" playsinline autoplay></video>
+
+    <div class="stage-empty" id="stageEmpty">
+      <div class="logo-mark">
+        <svg viewBox="0 0 32 32" width="46" height="46"><rect width="32" height="32" rx="7" fill="#3ea6ff"/><path d="M8 12h16v11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z" fill="#0b0e14"/><path d="m11 7 5 4 5-4" stroke="#0b0e14" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <h1>Tivi Web</h1>
+      <p>Vyber kanál v seznamu vlevo, nebo stiskni <kbd>G</kbd> pro TV průvodce.</p>
+    </div>
+
+    <div class="stage-spinner" id="spinner" hidden><div class="ring"></div></div>
+
+    <div class="stage-error" id="stageError" hidden>
+      <strong>Stream se nepodařilo přehrát</strong>
+      <span id="stageErrorMsg"></span>
+      <button class="btn" id="retryBtn">Zkusit znovu</button>
+    </div>
+
+    <!-- info overlay (auto-hides, like TiviMate) -->
+    <div class="osd" id="osd" hidden>
+      <div class="osd-top">
+        <img class="osd-logo" id="osdLogo" alt="" onerror="this.style.display='none'">
+        <div class="osd-meta">
+          <div class="osd-chan"><span class="osd-num" id="osdNum"></span><span id="osdName"></span></div>
+          <div class="osd-prog" id="osdProg"></div>
+          <div class="osd-bar"><i id="osdBarFill"></i></div>
+          <div class="osd-times"><span id="osdStart"></span><span id="osdEnd"></span></div>
+        </div>
+        <div class="osd-badges" id="osdBadges"></div>
+      </div>
+      <div class="osd-next" id="osdNext"></div>
+    </div>
+
+    <div class="stage-controls" id="stageControls">
+      <button class="icon-btn" id="btnMute" title="Ztlumit (M)">
+        <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7" class="wave"/></svg>
+      </button>
+      <input type="range" id="volume" min="0" max="100" value="100" title="Hlasitost">
+      <span class="spacer"></span>
+      <span class="pill" id="qualityPill" hidden></span>
+      <button class="icon-btn" id="btnPip" title="Obraz v obraze (P)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none"/><rect x="12" y="11" width="7" height="6" rx="1"/></svg>
+      </button>
+      <button class="icon-btn" id="btnFs" title="Celá obrazovka (F)">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ───────────────────────── Channel sidebar ───────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <header class="side-head">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" width="22" height="22"><rect width="32" height="32" rx="7" fill="#3ea6ff"/><path d="M8 12h16v11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z" fill="#0b0e14"/><path d="m11 7 5 4 5-4" stroke="#0b0e14" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+        <span>Tivi<b>Web</b></span>
+      </div>
+      <div class="head-actions">
+        <button class="icon-btn sm" id="btnGuide" title="TV průvodce (G)">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none"/><path d="M3 9h18M9 9v11" fill="none"/></svg>
+        </button>
+        <button class="icon-btn sm" id="btnSettings" title="Nastavení">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" fill="none"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="side-search">
+      <svg viewBox="0 0 24 24" class="s-ico"><circle cx="11" cy="11" r="7" fill="none"/><path d="m20 20-3.5-3.5" fill="none"/></svg>
+      <input id="chanSearch" type="search" placeholder="Hledat kanál…  (/)" autocomplete="off" spellcheck="false">
+    </div>
+
+    <nav class="groups" id="groups"></nav>
+
+    <div class="chan-list" id="chanList"></div>
+
+    <footer class="side-foot" id="sideFoot"></footer>
+  </aside>
+
+  <button class="sidebar-toggle" id="sidebarToggle" title="Seznam kanálů (Esc)">
+    <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none"/></svg>
+  </button>
+</div>
+
+<!-- ───────────────────────── EPG guide ───────────────────────── -->
+<section class="guide" id="guide" hidden>
+  <header class="guide-head">
+    <button class="icon-btn sm" id="guideClose" title="Zavřít (Esc)">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none"/></svg>
+    </button>
+    <h2>TV průvodce</h2>
+    <div class="guide-search">
+      <svg viewBox="0 0 24 24" class="s-ico"><circle cx="11" cy="11" r="7" fill="none"/><path d="m20 20-3.5-3.5" fill="none"/></svg>
+      <input id="progSearch" type="search" placeholder="Hledat pořad v EPG…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="guide-nav">
+      <button class="btn ghost" id="gPrev" title="−2 h">‹</button>
+      <button class="btn ghost" id="gNow">Teď</button>
+      <button class="btn ghost" id="gNext" title="+2 h">›</button>
+      <select id="gDay" class="select"></select>
+    </div>
+  </header>
+
+  <div class="guide-body" id="guideBody">
+    <div class="guide-timebar" id="timebar"><div class="timebar-inner" id="timebarInner"></div></div>
+    <div class="guide-rows" id="guideRows">
+      <div class="guide-names" id="guideNames"></div>
+      <div class="guide-grid" id="guideGrid">
+        <div class="grid-inner" id="gridInner"></div>
+        <div class="nowline" id="nowline"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="search-results" id="searchResults" hidden></div>
+</section>
+
+<!-- ───────────────────────── Program detail ───────────────────────── -->
+<div class="sheet-backdrop" id="detailBackdrop" hidden>
+  <div class="sheet" id="detail">
+    <button class="icon-btn sm sheet-close" id="detailClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none"/></svg></button>
+    <div class="detail-when" id="dWhen"></div>
+    <h3 id="dTitle"></h3>
+    <div class="detail-chan" id="dChan"></div>
+    <div class="detail-bar" id="dBarWrap" hidden><i id="dBar"></i></div>
+    <p class="detail-desc" id="dDesc"></p>
+    <div class="sheet-actions">
+      <button class="btn primary" id="dWatch">Přepnout na kanál</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────── Settings ───────────────────────── -->
+<div class="sheet-backdrop" id="setBackdrop" hidden>
+  <div class="sheet wide">
+    <button class="icon-btn sm sheet-close" id="setClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none"/></svg></button>
+    <h3>Nastavení</h3>
+
+    <label class="field">
+      <span>Playlisty (m3u) — jeden na řádek, volitelně <code>Název | URL</code></span>
+      <textarea id="setPlaylists" rows="4" spellcheck="false"></textarea>
+    </label>
+
+    <label class="field">
+      <span>EPG (XMLTV) — jeden na řádek, podporuje i <code>.xml.gz</code></span>
+      <textarea id="setEpgs" rows="3" spellcheck="false"></textarea>
+    </label>
+
+    <div class="field inline">
+      <label class="check"><input type="checkbox" id="setAutoplay"> Automaticky spustit poslední kanál</label>
+      <label class="check"><input type="checkbox" id="setProxy" checked> Přehrávat přes proxy serveru (řeší CORS)</label>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn ghost" id="setReload">Obnovit data</button>
+      <button class="btn primary" id="setSave">Uložit a načíst</button>
+    </div>
+    <p class="hint" id="setHint"></p>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/vendor/hls.min.js" onerror="window.__hlsFailed=1"></script>
+<script src="/app.js" type="module"></script>
+</body>
+</html>
