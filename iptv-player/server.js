@@ -84,12 +84,17 @@ function isPrivateAddr(ip) {
   return mapped ? isPrivateAddr(mapped[1]) : false;
 }
 
+const shortUrl = (u) => {
+  try { const p = new URL(u); return p.host + p.pathname.slice(0, 60); } catch { return String(u).slice(0, 70); }
+};
+
 async function assertPublicUrl(u) {
   if (ALLOW_PRIVATE) return;
   const host = new URL(u).hostname.replace(/^\[|\]$/g, '');
   const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true });
   for (const a of addrs) {
     if (isPrivateAddr(a.address)) {
+      console.warn(`[blocked] ${host} resolves to private ${a.address} — set ALLOW_PRIVATE_UPSTREAM=true to permit`);
       const e = new Error(`refusing upstream on a private address (${a.address})`);
       e.status = 403;
       throw e;
@@ -332,10 +337,16 @@ app.get('/stream', async (req, res) => {
   try {
     ({ res: upstream, finalUrl } = await safeFetch(url, { headers, timeout: 30000 }));
   } catch (e) {
+    console.warn(`[stream ${e.status || 'fail'}] ${shortUrl(url)} — ${e.message || e}`);
     return res.status(e.status || 502).send('upstream fetch failed: ' + String(e.message || e));
   }
   if (!upstream.ok && upstream.status !== 206) {
-    return res.status(upstream.status).send('upstream error ' + upstream.status);
+    // Providers usually explain a rejection in the body; that text is the whole
+    // difference between "token expired" and "wrong address".
+    let why = '';
+    try { why = (await upstream.text()).replace(/\s+/g, ' ').slice(0, 200); } catch {}
+    console.warn(`[stream ${upstream.status}] ${shortUrl(finalUrl)}${why ? ' — ' + why : ''}`);
+    return res.status(upstream.status).send(`upstream error ${upstream.status}${why ? ': ' + why : ''}`);
   }
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
   const looksLikeManifest =
