@@ -27,6 +27,10 @@
 
 * { box-sizing: border-box; }
 
+/* An author-level `display` beats the UA stylesheet's `[hidden]`, so every
+   element laid out below would ignore the hidden attribute without this. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;
