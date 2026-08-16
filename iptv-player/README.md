@@ -25,9 +25,30 @@ Bez Dockeru: `npm install && npm start`.
 - Okamžité vyhledávání kanálu
 - Seznam je virtualizovaný — plynulý i u playlistů s tisíci kanály
 
+**Hledání pořadu napříč stanicemi**
+
+Nemusíš vědět, na které stanici co běží. Napiš do vyhledávacího pole třeba
+`arsenal` a pod kanály se vypíše sekce **V programu** — všechny pořady, které
+ten výraz mají v názvu nebo popisu, napříč všemi kanály:
+
+```
+V PROGRAMU · 3
+ŽIVĚ    Arsenal FC - Manchester City      Nova Sport 1 Czech HD
+Dnes    Studio fotbal: Arsenal            ČT Sport
+18:40
+Zítra   Sestřihy Premier League           Nova Sport 2 Czech HD
+20:40
+```
+
+Řadí se podle času, ukazuje se jen to, co **právě běží nebo teprve bude** —
+skončené pořady se nevypisují. Kliknutím se otevře detail s popisem a
+tlačítkem pro přepnutí na daný kanál.
+
+Totéž funguje i v TV průvodci (`G`), kde je na výsledky víc místa.
+
 **EPG**
 - TV průvodce s časovou osou, blok pro každý pořad, červená linka „teď"
-- Vyhledávání pořadu napříč celým EPG (v názvu i popisu), včetně dnů dopředu
+- Vyhledávání pořadu napříč celým EPG (viz výše), včetně dnů dopředu
 - Detail pořadu s popisem a přepnutím na kanál
 - Volba dne (včera až +6 dní)
 

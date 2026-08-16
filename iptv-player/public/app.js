@@ -172,6 +172,7 @@ async function loadAll({ silent = false } = {}) {
     state.epgRaw = merged;
     indexEpg();
     renderList();
+    renderEpgHits(); // a search typed while the guide was still loading
     if (state.current !== -1) updateOsd();
     const progs = Object.values(merged.programmes).reduce((a, b) => a + b.length, 0);
     setFoot(`${state.channels.length} kanálů · ${progs.toLocaleString('cs-CZ')} pořadů`);
@@ -263,18 +264,50 @@ function applyFilter() {
   state.filtered = list;
   state.cursor = Math.min(state.cursor, Math.max(0, list.length - 1));
   renderList();
+  scheduleEpgHits();
+}
+
+// ── programme search across every channel ─────────────────────────────────
+
+/**
+ * Find programmes matching `q` on any channel, from the ones airing right now
+ * into the future — the "which station is the match on?" question.
+ */
+function searchProgrammes(q) {
+  q = q.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const now = Date.now();
+  const hits = [];
+  for (const c of state.channels) {
+    const list = state.epgByChan.get(c.id);
+    if (!list) continue;
+    for (const p of list) {
+      if (p.e < now) continue; // already over
+      if (p.t.toLowerCase().includes(q) || (p.d && p.d.toLowerCase().includes(q))) {
+        hits.push({ p, c });
+      }
+    }
+  }
+  return hits.sort((a, b) => a.p.s - b.p.s);
 }
 
 // ── virtualised channel list ──────────────────────────────────────────────
 
 const listEl = $('chanList');
 let rowH = 62;
-let spacer, viewport;
+let spacer, viewport, hitsEl, emptyEl;
 
 function initList() {
-  listEl.innerHTML = '<div class="vspacer" style="position:relative"><div class="vview" style="position:absolute;top:0;left:0;right:0"></div></div>';
+  // The virtual viewport is absolutely positioned, so anything it renders would
+  // overlap what follows. The empty notice lives in normal flow instead.
+  listEl.innerHTML =
+    '<div class="vspacer" style="position:relative"><div class="vview" style="position:absolute;top:0;left:0;right:0"></div></div>' +
+    '<div class="list-empty" id="listEmpty" hidden></div>' +
+    '<div class="epg-hits" id="epgHits" hidden></div>';
   spacer = listEl.firstElementChild;
   viewport = spacer.firstElementChild;
+  emptyEl = $('listEmpty');
+  hitsEl = $('epgHits');
   listEl.addEventListener('scroll', () => renderList(true), { passive: true });
   const measure = () => {
     const v = getComputedStyle(document.documentElement).getPropertyValue('--row-h');
@@ -318,9 +351,12 @@ function renderList(scrollOnly = false) {
   spacer.style.height = n * rowH + 'px';
 
   if (!n) {
-    viewport.innerHTML = `<div class="list-empty">${state.channels.length ? 'Nic nenalezeno' : 'Načítám…'}</div>`;
+    viewport.innerHTML = '';
+    emptyEl.textContent = state.channels.length ? 'Žádný kanál nenalezen' : 'Načítám…';
+    emptyEl.hidden = false;
     return;
   }
+  emptyEl.hidden = true;
   const top = listEl.scrollTop;
   const h = listEl.clientHeight || 600;
   const first = Math.max(0, Math.floor(top / rowH) - 6);
@@ -335,7 +371,57 @@ function renderList(scrollOnly = false) {
   viewport.innerHTML = html;
 }
 
+const SIDE_HITS_MAX = 60;
+let epgHitsTimer;
+
+function scheduleEpgHits() {
+  clearTimeout(epgHitsTimer);
+  epgHitsTimer = setTimeout(renderEpgHits, 180);
+}
+
+function renderEpgHits() {
+  if (!hitsEl) return;
+  const q = state.query.trim();
+  if (q.length < 2 || !state.epgByChan.size) {
+    hitsEl.hidden = true;
+    hitsEl.innerHTML = '';
+    return;
+  }
+  const hits = searchProgrammes(q);
+  if (!hits.length) {
+    hitsEl.hidden = true;
+    hitsEl.innerHTML = '';
+    return;
+  }
+  const shown = hits.slice(0, SIDE_HITS_MAX);
+  const now = Date.now();
+
+  hitsEl.hidden = false;
+  hitsEl.innerHTML =
+    `<div class="ehit-head">V programu · <b>${hits.length}</b>` +
+    `${hits.length > SIDE_HITS_MAX ? ` (prvních ${SIDE_HITS_MAX})` : ''}</div>` +
+    shown.map((h, i) => {
+      const live = h.p.s <= now && now < h.p.e;
+      return `<div class="ehit${live ? ' live' : ''}" data-h="${i}" title="${esc(h.p.t)}">
+        <span class="ehit-when">${live
+          ? '<b class="lv">ŽIVĚ</b>'
+          : `<b>${esc(dayLabel(h.p.s))}</b><span>${hhmm(h.p.s)}</span>`}</span>
+        <span class="ehit-body">
+          <span class="ehit-t">${esc(h.p.t)}</span>
+          <span class="ehit-c">${esc(h.c.name)}</span>
+        </span>
+      </div>`;
+    }).join('');
+  hitsEl._hits = shown;
+}
+
 listEl.addEventListener('click', (e) => {
+  const hit = e.target.closest('.ehit[data-h]');
+  if (hit) {
+    const h = hitsEl._hits[+hit.dataset.h];
+    if (h) openDetail(h.p, h.c.id);
+    return;
+  }
   const favBtn = e.target.closest('[data-fav]');
   if (favBtn) {
     e.stopPropagation();
@@ -693,26 +779,16 @@ $('progSearch').addEventListener('input', (e) => {
   searchTimer = setTimeout(() => runProgSearch(e.target.value), 160);
 });
 
+const GUIDE_HITS_MAX = 400;
+
 function runProgSearch(q) {
-  q = q.trim().toLowerCase();
+  q = q.trim();
   const box = $('searchResults');
   if (q.length < 2) { box.hidden = true; return; }
 
   const now = Date.now();
-  const hits = [];
-  for (const c of state.channels) {
-    const list = state.epgByChan.get(c.id);
-    if (!list) continue;
-    for (const p of list) {
-      if (p.e < now - 36e5) continue;
-      if (p.t.toLowerCase().includes(q) || (p.d && p.d.toLowerCase().includes(q))) {
-        hits.push({ p, c });
-        if (hits.length > 400) break;
-      }
-    }
-    if (hits.length > 400) break;
-  }
-  hits.sort((a, b) => a.p.s - b.p.s);
+  const all = searchProgrammes(q);
+  const hits = all.slice(0, GUIDE_HITS_MAX);
 
   box.hidden = false;
   if (!hits.length) {
@@ -720,7 +796,8 @@ function runProgSearch(q) {
     return;
   }
   box.innerHTML =
-    `<div class="sr-head">${hits.length}${hits.length > 400 ? '+' : ''} výsledků</div>` +
+    `<div class="sr-head">${all.length} výsledků` +
+    `${all.length > GUIDE_HITS_MAX ? ` (zobrazeno prvních ${GUIDE_HITS_MAX})` : ''}</div>` +
     hits.map(({ p, c }, i) => {
       const live = p.s <= now && now < p.e;
       return `<div class="sr-item" data-h="${i}">
