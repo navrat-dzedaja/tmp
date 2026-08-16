@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Telka.org LIVE">
+  <defs>
+    <linearGradient id="tvScreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bfe3f2"/>
+      <stop offset=".55" stop-color="#3c4b5c"/>
+      <stop offset="1" stop-color="#141b24"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rabbit-ear antenna -->
+  <path d="M21 8 32 19 43 8" fill="none" stroke="#8d5c49" stroke-width="3.6" stroke-linecap="round"/>
+
+  <!-- cabinet -->
+  <rect x="5" y="18" width="54" height="40" rx="7" fill="#8d5c49"/>
+  <rect x="8.5" y="21.5" width="47" height="33" rx="4.5" fill="#ded3c3"/>
+
+  <!-- picture tube -->
+  <rect x="11.5" y="24.5" width="32" height="27" rx="7" fill="#10161d"/>
+  <rect x="13.2" y="26.2" width="28.6" height="23.6" rx="5.5" fill="url(#tvScreen)"/>
+
+  <!-- tuning knobs -->
+  <circle cx="50.5" cy="32" r="4.1" fill="#f2ebdf"/>
+  <circle cx="50.5" cy="44" r="4.1" fill="#f2ebdf"/>
+</svg>

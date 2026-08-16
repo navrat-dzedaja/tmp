@@ -14,6 +14,7 @@ const express = require('express');
 const compression = require('compression');
 const zlib = require('zlib');
 const path = require('path');
+const fs = require('fs');
 const { Readable } = require('stream');
 const dns = require('dns').promises;
 const net = require('net');
@@ -519,6 +520,7 @@ function envConfig() {
     playlists: playlists.join('\n'),
     epgs: epgs.join('\n'),
     favoritesName: (process.env.FAVORITES_NAME || '').trim(),
+    appName: (process.env.APP_NAME || 'Telka.org LIVE').trim(),
     fromEnv: playlists.length > 0,
     llm: Boolean(groq),
     llmLang: GROQ_LANG,
@@ -526,6 +528,28 @@ function envConfig() {
 }
 
 app.get('/api/config', (_req, res) => res.json(envConfig()));
+
+/**
+ * The brand mark. Drop your own public/logo.webp (or .png/.gif/.jpg) next to
+ * the bundled logo.svg and it wins — no code change, no rebuild needed beyond
+ * the copy. Animated webp and gif work; they animate wherever the browser
+ * shows them, favicons excepted.
+ */
+const LOGO_TYPES = [
+  ['logo.webp', 'image/webp'], ['logo.png', 'image/png'], ['logo.gif', 'image/gif'],
+  ['logo.jpg', 'image/jpeg'], ['logo.svg', 'image/svg+xml'],
+];
+app.get('/brand-logo', (_req, res) => {
+  for (const [file, type] of LOGO_TYPES) {
+    const full = path.join(__dirname, 'public', file);
+    if (fs.existsSync(full)) {
+      res.setHeader('Content-Type', type);
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.sendFile(full);
+    }
+  }
+  res.status(404).send('no logo');
+});
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
 

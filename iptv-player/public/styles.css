@@ -101,7 +101,8 @@ svg [fill="none"], svg path[fill="none"], svg rect[fill="none"], svg circle[fill
 }
 .brand { display: flex; align-items: center; gap: 9px; font-size: 16px; letter-spacing: .2px; }
 .brand b { color: var(--accent); font-weight: 700; }
-.brand span { font-weight: 500; }
+.brand span { font-weight: 500; white-space: nowrap; }
+.brand img { width: 26px; height: 26px; object-fit: contain; flex: 0 0 auto; }
 .head-actions { display: flex; gap: 6px; }
 
 .icon-btn {
@@ -268,6 +269,7 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
 
 .stage-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 4px; text-align: center; padding: 20px; }
 .stage-empty h1 { margin: 10px 0 2px; font-size: 26px; font-weight: 600; }
+.stage-empty .logo-mark img { width: 72px; height: 72px; object-fit: contain; }
 .stage-empty p { margin: 0; color: var(--txt-2); font-size: 14px; }
 .stage-empty[hidden] { display: none; }
 
@@ -326,9 +328,11 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
   opacity: 0; pointer-events: none;
   transition: opacity .25s var(--ease);
 }
-/* Shown while there is activity; JS clears the flag once playback settles. */
+/* Shown while there is activity; JS clears the flag once playback settles.
+   Keyboard focus keeps them up, but a tapped button must not — on touch the
+   button stays focused afterwards, which would pin the bar open forever. */
 .stage.controls-on .stage-controls,
-.stage-controls:focus-within { opacity: 1; pointer-events: auto; }
+.stage-controls:has(:focus-visible) { opacity: 1; pointer-events: auto; }
 .stage.idle { cursor: none; }
 .stage-controls .spacer { flex: 1; }
 .stage-controls .icon-btn { color: #dfe6f3; }

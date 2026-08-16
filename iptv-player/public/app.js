@@ -749,7 +749,7 @@ function wakeControls(ms = 3200) {
   idleTimer = setTimeout(() => {
     // keep them up whenever there is nothing playing to get back to
     if (state.current === -1 || video.paused) return;
-    if (stageEl.contains(document.activeElement)) return;
+    if (stageEl.querySelector(':focus-visible')) return; // keyboard user is on a control
     stageEl.classList.remove('controls-on');
     stageEl.classList.add('idle');
   }, ms);
@@ -768,7 +768,13 @@ video.addEventListener('click', () => {
 });
 // interacting with a control should not let it vanish underneath the pointer
 $('stageControls').addEventListener('pointerdown', () => wakeControls());
-$('stageControls').addEventListener('click', () => wakeControls());
+$('stageControls').addEventListener('click', (e) => {
+  // a tapped or clicked button keeps focus afterwards; drop it so the bar can
+  // still fade. detail === 0 means the keyboard activated it, so leave that be.
+  const btn = e.target.closest('button');
+  if (btn && e.detail > 0) btn.blur();
+  wakeControls();
+});
 video.addEventListener('pause', () => wakeControls());
 video.addEventListener('play', () => wakeControls());
 
@@ -1268,6 +1274,18 @@ setInterval(() => {
 
 // ── boot ──────────────────────────────────────────────────────────────────
 
+/** Applies APP_NAME everywhere the name shows, accenting the last word. */
+function applyBranding(name) {
+  const n = String(name || '').trim();
+  if (!n) return;
+  document.title = n;
+  $('emptyName').textContent = n;
+  const cut = n.lastIndexOf(' ');
+  $('brandName').innerHTML = cut === -1
+    ? esc(n)
+    : `${esc(n.slice(0, cut))} <b>${esc(n.slice(cut + 1))}</b>`;
+}
+
 /**
  * .env supplies the defaults. Once the user saves settings in the UI those win,
  * until they explicitly pull the .env values back in.
@@ -1278,6 +1296,7 @@ async function applyServerConfig() {
     if (!r.ok) return;
     serverConfig = await r.json();
   } catch { return; }
+  applyBranding(serverConfig.appName);
   if (!serverConfig.fromEnv || localStorage.getItem(LS.override)) return;
   state.settings.playlists = serverConfig.playlists;
   if (serverConfig.epgs) state.settings.epgs = serverConfig.epgs;

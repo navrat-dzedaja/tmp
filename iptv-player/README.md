@@ -1,4 +1,4 @@
-# Tivi Web
+# Telka.org LIVE
 
 TiviMate-style webový IPTV přehrávač pro **m3u playlisty** a **XMLTV EPG**.
 Běží v Dockeru na localhostu, ovládá se z prohlížeče a nahrazuje kostrbaté VLC.
@@ -125,6 +125,25 @@ skupiny, ale nic z 18+". Názvy skupin uvidíš jako štítky nad seznamem kaná
 
 `.env` je v `.gitignore`, protože playlist URL bývá osobní.
 
+## Název a logo
+
+`APP_NAME` v `.env` mění název v záložce prohlížeče, v hlavičce i na úvodní
+obrazovce. Poslední slovo se zvýrazní barvou — `Telka.org LIVE` tedy vyjde jako
+Telka.org **LIVE**.
+
+Logo i favicon berou obojí ze stejného místa, `/brand-logo`. Vyměníš je tak, že
+**položíš vlastní soubor do `public/`**:
+
+| Soubor | |
+|---|---|
+| `public/logo.webp` | má přednost (funguje i animovaný) |
+| `public/logo.png` / `.gif` / `.jpg` | další v pořadí |
+| `public/logo.svg` | dodávané výchozí logo |
+
+Po výměně stačí `docker compose up -d --build`. Animovaný webp nebo gif se hýbe
+v hlavičce a na úvodní obrazovce; jako favicon ho prohlížeč ukáže staticky —
+animované favicony nepodporuje.
+
 ## EPG v azbuce a arabštině
 
 Playlisty z těchhle zdrojů mívají popisy v cizím písmu. Řeší se to ve dvou
@@ -153,14 +172,14 @@ všechny by znamenalo statisíce volání modelu při každém načtení a něko
 ## Vystavení na vlastní doménu (Cloudflare Tunnel)
 
 Compose obsahuje službu `cloudflared`, která přehrávač vystrčí na
-`https://tv.toobab.net` — **bez otevírání portů na routeru**, protože tunel se
+`https://live.telka.org` — **bez otevírání portů na routeru**, protože tunel se
 připojuje ven.
 
 1. [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → **Networks → Tunnels
    → Create a tunnel** → typ *Cloudflared*, pojmenuj třeba `tivi`.
 2. Zkopíruj token z instalačního příkazu (dlouhý řetězec za `--token`).
 3. V tunelu **Public Hostname → Add**:
-   - Subdomain `tv`, Domain `toobab.net`
+   - Subdomain `live`, Domain `telka.org`
    - Service **HTTP**, URL `tivi-web:8098`
 
    DNS záznam vytvoří Cloudflare sám. `tivi-web` je název služby v compose,
@@ -182,7 +201,7 @@ použití zůstává beze změny.
 Přehrávač **nemá vlastní přihlašování**. Na veřejné doméně by se k tvému IPTV
 předplatnému dostal kdokoli, kdo adresu uhodne. Zamkni to v Cloudflare:
 **Access → Applications → Add an application → Self-hosted**, doména
-`tv.toobab.net`, a jako pravidlo dej svůj e-mail (jednorázový kód do mailu).
+`live.telka.org`, a jako pravidlo dej svůj e-mail (jednorázový kód do mailu).
 Ve free tarifu to jde pro 50 uživatelů.
 
 Server zároveň **odmítá stahovat z adres ve tvé lokální síti** — jinak by
