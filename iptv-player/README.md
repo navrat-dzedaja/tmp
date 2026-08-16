@@ -121,6 +121,47 @@ skupiny, ale nic z 18+". Názvy skupin uvidíš jako štítky nad seznamem kaná
 
 `.env` je v `.gitignore`, protože playlist URL bývá osobní.
 
+## Vystavení na vlastní doménu (Cloudflare Tunnel)
+
+Compose obsahuje službu `cloudflared`, která přehrávač vystrčí na
+`https://tv.toobab.net` — **bez otevírání portů na routeru**, protože tunel se
+připojuje ven.
+
+1. [Cloudflare Zero Trust](https://one.dash.cloudflare.com) → **Networks → Tunnels
+   → Create a tunnel** → typ *Cloudflared*, pojmenuj třeba `tivi`.
+2. Zkopíruj token z instalačního příkazu (dlouhý řetězec za `--token`).
+3. V tunelu **Public Hostname → Add**:
+   - Subdomain `tv`, Domain `toobab.net`
+   - Service **HTTP**, URL `tivi-web:8098`
+
+   DNS záznam vytvoří Cloudflare sám. `tivi-web` je název služby v compose,
+   takže se cloudflared dostane k přehrávači po interní síti Dockeru.
+4. Do `.env`:
+
+   ```env
+   COMPOSE_PROFILES=tunnel
+   CLOUDFLARE_TUNNEL_TOKEN=token_z_dashboardu
+   ```
+
+5. `docker compose up -d`
+
+Bez `COMPOSE_PROFILES=tunnel` se cloudflared nespustí, takže běžné lokální
+použití zůstává beze změny.
+
+### Než to pustíš do světa
+
+Přehrávač **nemá vlastní přihlašování**. Na veřejné doméně by se k tvému IPTV
+předplatnému dostal kdokoli, kdo adresu uhodne. Zamkni to v Cloudflare:
+**Access → Applications → Add an application → Self-hosted**, doména
+`tv.toobab.net`, a jako pravidlo dej svůj e-mail (jednorázový kód do mailu).
+Ve free tarifu to jde pro 50 uživatelů.
+
+Server zároveň **odmítá stahovat z adres ve tvé lokální síti** — jinak by
+`/stream?url=…` po vystavení fungoval jako otevřená proxy do domácí sítě
+(router, NAS, cloud metadata). Kontroluje se i každé přesměrování, aby veřejná
+adresa nemohla přesměrovat na privátní. Když máš playlist na privátní adrese,
+povol `ALLOW_PRIVATE_UPSTREAM=true` — ale pak raději bez veřejného tunelu.
+
 ## Vlastní playlisty a EPG z GUI
 
 Ozubené kolečko vpravo nahoře. Jeden zdroj na řádek, ve stejném tvaru:

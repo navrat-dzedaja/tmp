@@ -8,8 +8,25 @@ services:
       # Some providers only answer to a player-ish User-Agent.
       UPSTREAM_UA: "${UPSTREAM_UA:-VLC/3.0.20 LibVLC/3.0.20}"
       PORT: "8098"
+      # Refuse upstream URLs that resolve into your LAN. Set to "true" only if a
+      # playlist or EPG genuinely lives on a private address.
+      ALLOW_PRIVATE_UPSTREAM: "${ALLOW_PRIVATE_UPSTREAM:-false}"
     # Playlists, EPG sources and group filters live in .env — see .env.example.
     env_file:
       - path: .env
         required: false
+    restart: unless-stopped
+
+  # Publishes the player on your own domain over HTTPS, with no port forwarding
+  # and no open inbound firewall — the tunnel dials out to Cloudflare.
+  # Starts only when COMPOSE_PROFILES=tunnel is set (see .env.example).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tivi-cloudflared
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is missing — put it in .env}"
+    depends_on:
+      - tivi-web
     restart: unless-stopped

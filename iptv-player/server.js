@@ -15,6 +15,8 @@ const compression = require('compression');
 const zlib = require('zlib');
 const path = require('path');
 const { Readable } = require('stream');
+const dns = require('dns').promises;
+const net = require('net');
 
 const PORT = process.env.PORT || 8098;
 const UA = process.env.UPSTREAM_UA || 'VLC/3.0.20 LibVLC/3.0.20';
@@ -56,11 +58,72 @@ function isHttpUrl(u) {
   }
 }
 
+// --- upstream address policy ------------------------------------------------
+// Once the player is reachable from the internet, /stream and the parsers would
+// otherwise happily fetch anything for anyone — including hosts on the LAN this
+// container sits in. Refuse upstreams that resolve to non-public addresses.
+
+const ALLOW_PRIVATE = String(process.env.ALLOW_PRIVATE_UPSTREAM) === 'true';
+
+function isPrivateAddr(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    return (
+      a === 0 || a === 10 || a === 127 ||
+      (a === 169 && b === 254) ||          // link-local / cloud metadata
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) || // CGNAT
+      a >= 224                              // multicast and reserved
+    );
+  }
+  const s = String(ip).toLowerCase();
+  if (s === '::' || s === '::1') return true;
+  if (/^fe[89ab]/.test(s) || /^f[cd]/.test(s)) return true; // link-local, ULA
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(s);
+  return mapped ? isPrivateAddr(mapped[1]) : false;
+}
+
+async function assertPublicUrl(u) {
+  if (ALLOW_PRIVATE) return;
+  const host = new URL(u).hostname.replace(/^\[|\]$/g, '');
+  const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true });
+  for (const a of addrs) {
+    if (isPrivateAddr(a.address)) {
+      const e = new Error(`refusing upstream on a private address (${a.address})`);
+      e.status = 403;
+      throw e;
+    }
+  }
+}
+
+/**
+ * fetch() that re-checks the address policy on every redirect hop — following
+ * redirects blindly would let a public URL bounce us onto a private one.
+ */
+async function safeFetch(url, { headers = {}, timeout = 30000 } = {}) {
+  let current = url;
+  for (let hop = 0; hop < 5; hop++) {
+    await assertPublicUrl(current);
+    const res = await fetch(current, {
+      headers,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(timeout),
+    });
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      try { await res.body?.cancel(); } catch {}
+      current = new URL(res.headers.get('location'), current).href;
+      continue;
+    }
+    return { res, finalUrl: res.url || current };
+  }
+  throw new Error('too many redirects');
+}
+
 async function fetchBuffer(url, extraHeaders = {}) {
-  const res = await fetch(url, {
+  const { res } = await safeFetch(url, {
     headers: { 'User-Agent': UA, ...extraHeaders },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(60000),
+    timeout: 60000,
   });
   if (!res.ok) throw new Error(`upstream ${res.status} for ${url}`);
   let buf = Buffer.from(await res.arrayBuffer());
@@ -138,7 +201,7 @@ app.get('/api/playlist', async (req, res) => {
     cachePut(key, data, PLAYLIST_TTL);
     res.json(data);
   } catch (e) {
-    res.status(502).json({ error: String(e.message || e) });
+    res.status(e.status || 502).json({ error: String(e.message || e) });
   }
 });
 
@@ -220,7 +283,7 @@ app.get('/api/epg', async (req, res) => {
     cachePut(key, data, EPG_TTL);
     res.json(data);
   } catch (e) {
-    res.status(502).json({ error: String(e.message || e) });
+    res.status(e.status || 502).json({ error: String(e.message || e) });
   }
 });
 
@@ -265,17 +328,15 @@ app.get('/stream', async (req, res) => {
   const headers = { 'User-Agent': UA };
   if (req.headers.range) headers.Range = req.headers.range;
 
-  let upstream;
+  let upstream, finalUrl;
   try {
-    upstream = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(30000) });
+    ({ res: upstream, finalUrl } = await safeFetch(url, { headers, timeout: 30000 }));
   } catch (e) {
-    return res.status(502).send('upstream fetch failed: ' + String(e.message || e));
+    return res.status(e.status || 502).send('upstream fetch failed: ' + String(e.message || e));
   }
   if (!upstream.ok && upstream.status !== 206) {
     return res.status(upstream.status).send('upstream error ' + upstream.status);
   }
-
-  const finalUrl = upstream.url || url;
   const ct = (upstream.headers.get('content-type') || '').toLowerCase();
   const looksLikeManifest =
     ct.includes('mpegurl') || ct.includes('m3u') || /\.m3u8?($|\?)/i.test(new URL(finalUrl).pathname);
