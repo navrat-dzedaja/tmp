@@ -385,6 +385,9 @@ function destroyHls() {
 
 function showError(msg) {
   $('spinner').hidden = true;
+  // Live streams routinely emit fatal errors that hls.js recovers from on its
+  // own. If pictures are still coming, there is nothing to tell the user about.
+  if (!video.paused && !video.ended && video.readyState >= 3) return;
   $('stageErrorMsg').textContent = msg;
   $('stageError').hidden = false;
 }
@@ -444,7 +447,14 @@ function play(chanIdx, { quiet = false } = {}) {
   if (!quiet) flashOsd();
 }
 
-video.addEventListener('playing', () => { $('spinner').hidden = true; $('stageError').hidden = true; });
+video.addEventListener('playing', () => {
+  $('spinner').hidden = true;
+  $('stageError').hidden = true;
+});
+// clears a dialog left over from an error the stream already recovered from
+video.addEventListener('timeupdate', () => {
+  if (!$('stageError').hidden) $('stageError').hidden = true;
+});
 video.addEventListener('waiting', () => { $('spinner').hidden = false; });
 video.addEventListener('error', () => {
   if (!hls) showError('Přehrávání selhalo — zkus jiný kanál nebo vypni proxy v nastavení.');
