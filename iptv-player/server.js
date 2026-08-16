@@ -386,6 +386,114 @@ app.get('/stream', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// optional LLM help for guides written in a script the viewer cannot read
+// ---------------------------------------------------------------------------
+
+const GROQ_KEY = (process.env.GROQ_API_KEY || '').trim();
+const GROQ_MODEL = (process.env.GROQ_MODEL || 'llama-3.3-70b-versatile').trim();
+const GROQ_LANG = (process.env.GROQ_TARGET_LANG || 'Czech').trim();
+const GROQ_BASE = (process.env.GROQ_BASE_URL || '').trim(); // tests point this elsewhere
+
+let groq = null;
+if (GROQ_KEY) {
+  const Groq = require('groq-sdk');
+  groq = new Groq({ apiKey: GROQ_KEY, ...(GROQ_BASE ? { baseURL: GROQ_BASE } : {}) });
+}
+
+// The key never reaches the browser, and answers are reused: the same
+// programme gets opened repeatedly and the guide barely changes.
+const llmCache = new Map();
+const LLM_CACHE_MAX = 2000;
+
+function llmCacheGet(k) { return llmCache.get(k); }
+function llmCachePut(k, v) {
+  if (llmCache.size >= LLM_CACHE_MAX) llmCache.delete(llmCache.keys().next().value);
+  llmCache.set(k, v);
+}
+
+async function askGroq(system, user, maxTokens = 700) {
+  const r = await groq.chat.completions.create({
+    model: GROQ_MODEL,
+    temperature: 0,
+    max_tokens: maxTokens,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+  });
+  return r.choices[0]?.message?.content?.trim() || '';
+}
+
+app.use('/api/llm', express.json({ limit: '64kb' }));
+
+/** Translate a programme's title and description into the viewer's language. */
+app.post('/api/llm/translate', async (req, res) => {
+  if (!groq) return res.status(503).json({ error: 'GROQ_API_KEY není nastaven' });
+  const title = String(req.body?.title || '').slice(0, 400);
+  const desc = String(req.body?.desc || '').slice(0, 4000);
+  if (!title && !desc) return res.status(400).json({ error: 'nothing to translate' });
+
+  const key = 'tr:' + GROQ_LANG + ':' + title + ' ' + desc;
+  const hit = llmCacheGet(key);
+  if (hit) return res.json({ ...hit, cached: true });
+
+  try {
+    const out = await askGroq(
+      `You translate television programme listings into ${GROQ_LANG}. ` +
+      `Reply with strict JSON only: {"title":"...","desc":"..."}. ` +
+      `Keep proper nouns, team names and competition names in their usual ${GROQ_LANG} form. ` +
+      `If a field is empty leave it as an empty string. Do not add commentary.`,
+      JSON.stringify({ title, desc })
+    );
+    const m = /\{[\s\S]*\}/.exec(out);
+    if (!m) throw new Error('model did not return JSON');
+    const parsed = JSON.parse(m[0]);
+    const data = { title: String(parsed.title || ''), desc: String(parsed.desc || '') };
+    llmCachePut(key, data);
+    res.json(data);
+  } catch (e) {
+    console.warn('[llm translate]', e.message || e);
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+/**
+ * Give a search term its equivalents in other scripts, so "west ham" also finds
+ * "Уест Хям" — transliteration alone cannot bridge that.
+ */
+app.post('/api/llm/variants', async (req, res) => {
+  if (!groq) return res.status(503).json({ error: 'GROQ_API_KEY není nastaven' });
+  const q = String(req.body?.q || '').trim().slice(0, 120);
+  if (q.length < 2) return res.status(400).json({ error: 'query too short' });
+
+  const key = 'var:' + q.toLowerCase();
+  const hit = llmCacheGet(key);
+  if (hit) return res.json({ variants: hit, cached: true });
+
+  try {
+    const out = await askGroq(
+      'The user searches a multilingual TV guide. Given a search term, return how it is ' +
+      'commonly written in Russian, Bulgarian, Ukrainian and Arabic TV listings, plus ' +
+      'common alternative spellings. Reply with strict JSON only: {"variants":["..."]}. ' +
+      'At most 8 entries, no explanations. If nothing sensible applies, return an empty list.',
+      q,
+      300
+    );
+    const m = /\{[\s\S]*\}/.exec(out);
+    const parsed = m ? JSON.parse(m[0]) : { variants: [] };
+    const variants = (Array.isArray(parsed.variants) ? parsed.variants : [])
+      .map((v) => String(v).trim())
+      .filter((v) => v && v.length <= 60)
+      .slice(0, 8);
+    llmCachePut(key, variants);
+    res.json({ variants });
+  } catch (e) {
+    console.warn('[llm variants]', e.message || e);
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // configuration from the environment (.env via docker compose)
 // ---------------------------------------------------------------------------
 
@@ -412,6 +520,8 @@ function envConfig() {
     epgs: epgs.join('\n'),
     favoritesName: (process.env.FAVORITES_NAME || '').trim(),
     fromEnv: playlists.length > 0,
+    llm: Boolean(groq),
+    llmLang: GROQ_LANG,
   };
 }
 

@@ -46,6 +46,10 @@ tlačítkem pro přepnutí na daný kanál.
 
 Totéž funguje i v TV průvodci (`G`), kde je na výsledky víc místa.
 
+**Na diakritice ani písmu nezáleží.** `banik` najde „Baník", `baník` najde
+„Banik", `radek` najde „Řádek" — a naopak. Azbuka se navíc přepisuje do
+latinky, takže `arsenal` najde i „Арсенал".
+
 **EPG**
 - TV průvodce s časovou osou, blok pro každý pořad, červená linka „teď"
 - Vyhledávání pořadu napříč celým EPG (viz výše), včetně dnů dopředu
@@ -120,6 +124,31 @@ skupiny, ale nic z 18+". Názvy skupin uvidíš jako štítky nad seznamem kaná
 „Oblíbené". Jde nastavit i v GUI.
 
 `.env` je v `.gitignore`, protože playlist URL bývá osobní.
+
+## EPG v azbuce a arabštině
+
+Playlisty z těchhle zdrojů mívají popisy v cizím písmu. Řeší se to ve dvou
+krocích, přičemž ten důležitější nic nestojí:
+
+**Vždy, bez konfigurace:** azbuka se pro účely hledání přepisuje do latinky,
+takže `arsenal` najde „Арсенал". Přepis ale není překlad — `west ham` samo
+o sobě „Уест Хям" nenajde, protože to je foneticky jinak.
+
+**S klíčem od Groqu** (`GROQ_API_KEY` v `.env`) se přidají dvě věci:
+
+- **Tlačítko „Přeložit"** v detailu pořadu. Objeví se jen u textu, který není
+  latinkou. Přeloží název i popis, druhým klepnutím se vrátíš k originálu.
+- **Dohledání dotazu v cizích písmech.** Když hledání nic nenajde, aplikace se
+  jednou zeptá modelu, jak se výraz píše v ruských, bulharských, ukrajinských
+  a arabských programech, a hledá znovu — takže `west ham` nakonec najde
+  i „Уест Хям".
+
+Klíč zůstává na serveru a do prohlížeče se neposílá. Odpovědi se cachují, takže
+opakované otevření stejného pořadu už model nevolá.
+
+**Proč se nepřekládá celé EPG:** tvoje EPG má přes 171 000 pořadů. Přeložit je
+všechny by znamenalo statisíce volání modelu při každém načtení a několik hodin
+čekání. Překlad na vyžádání dělá stejnou službu za jedno volání.
 
 ## Vystavení na vlastní doménu (Cloudflare Tunnel)
 

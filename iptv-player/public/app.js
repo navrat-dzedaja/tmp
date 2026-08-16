@@ -61,6 +61,31 @@ const dayLabel = (ms) => {
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// ── search normalisation ──────────────────────────────────────────────────
+
+// Cyrillic -> Latin, so "Арсенал" is reachable by typing "arsenal".
+const CYR = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i',
+  й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't',
+  у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '',
+  э: 'e', ю: 'yu', я: 'ya',
+  і: 'i', ї: 'yi', є: 'ye', ґ: 'g', ў: 'u',            // Ukrainian / Belarusian
+  ј: 'j', љ: 'lj', њ: 'nj', ћ: 'c', ђ: 'dj', џ: 'dz',  // Serbian
+  ѓ: 'g', ќ: 'k', ѕ: 'dz',                             // Macedonian
+};
+const HAS_CYR = /[Ѐ-ӿ]/;
+const CYR_G = /[Ѐ-ӿ]/g;
+
+/**
+ * Fold text to a diacritic-free lowercase Latin key, so "banik" matches
+ * "Baník" and "radek" matches "řádek" — in either direction.
+ */
+function fold(s) {
+  let t = String(s == null ? '' : s).toLowerCase();
+  if (HAS_CYR.test(t)) t = t.replace(CYR_G, (c) => (c in CYR ? CYR[c] : c));
+  return t.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 // Normalised key used to match playlist channels to EPG entries by name.
 function norm(s) {
   return String(s || '')
@@ -208,6 +233,7 @@ async function loadAll({ silent = false } = {}) {
     for (const k of Object.keys(merged.programmes)) merged.programmes[k].sort((a, b) => a.s - b.s);
     state.epgRaw = merged;
     indexEpg();
+    buildFoldIndex();
     renderList();
     renderEpgHits(); // a search typed while the guide was still loading
     if (state.current !== -1) updateOsd();
@@ -288,15 +314,15 @@ function renderGroups() {
 }
 
 function applyFilter() {
-  const q = state.query.trim().toLowerCase();
+  const q = fold(state.query.trim());
   let list = state.channels;
   if (state.group === 'fav') list = list.filter((c) => state.favs.has(c.url));
   else if (state.group !== 'all') list = list.filter((c) => c.group === state.group);
   if (q) {
-    list = list.filter((c) =>
-      c.name.toLowerCase().includes(q) ||
-      (c.tvgName && c.tvgName.toLowerCase().includes(q)) ||
-      c.group.toLowerCase().includes(q));
+    list = list.filter((c) => {
+      if (c._f === undefined) c._f = fold(`${c.name} ${c.tvgName || ''} ${c.group}`);
+      return c._f.includes(q);
+    });
   }
   state.filtered = list;
   state.cursor = Math.min(state.cursor, Math.max(0, list.length - 1));
@@ -310,9 +336,35 @@ function applyFilter() {
  * Find programmes matching `q` on any channel, from the ones airing right now
  * into the future — the "which station is the match on?" question.
  */
-function searchProgrammes(q) {
-  q = q.trim().toLowerCase();
-  if (q.length < 2) return [];
+/**
+ * Folding the whole guide costs about a second in one go, which would freeze
+ * the first keystroke. Do it in idle slices instead, so it is ready by the time
+ * anyone types; searchProgrammes still folds on demand for whatever is left.
+ */
+function buildFoldIndex() {
+  const lists = [...state.epgByChan.values()];
+  let li = 0, pi = 0;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
+
+  const step = () => {
+    const started = performance.now();
+    while (li < lists.length) {
+      const list = lists[li];
+      while (pi < list.length) {
+        const p = list[pi++];
+        if (p._f === undefined) p._f = fold(p.d ? p.t + ' ' + p.d : p.t);
+        if (performance.now() - started > 12) { idle(step); return; } // keep frames smooth
+      }
+      pi = 0;
+      li++;
+    }
+  };
+  idle(step);
+}
+
+function searchProgrammes(q, extraTerms = []) {
+  const needles = [fold(q), ...extraTerms.map(fold)].filter((t) => t.length >= 2);
+  if (!needles.length) return [];
   const now = Date.now();
   const hits = [];
   for (const c of state.channels) {
@@ -320,9 +372,9 @@ function searchProgrammes(q) {
     if (!list) continue;
     for (const p of list) {
       if (p.e < now) continue; // already over
-      if (p.t.toLowerCase().includes(q) || (p.d && p.d.toLowerCase().includes(q))) {
-        hits.push({ p, c });
-      }
+      // folded form is cached per programme: the guide holds well over 100k
+      if (p._f === undefined) p._f = fold(p.d ? p.t + ' ' + p.d : p.t);
+      if (needles.some((n) => p._f.includes(n))) hits.push({ p, c });
     }
   }
   return hits.sort((a, b) => a.p.s - b.p.s);
@@ -417,6 +469,29 @@ function renderList(scrollOnly = false) {
 const SIDE_HITS_MAX = 60;
 let epgHitsTimer;
 
+// Cross-script equivalents of a query, fetched once per term and kept.
+const variantCache = new Map();
+const variantsFor = (q) => variantCache.get(q.trim().toLowerCase()) || [];
+
+/** Only asked when a local search came up empty, so it costs nothing normally. */
+async function askVariants(q) {
+  const key = q.trim().toLowerCase();
+  if (!serverConfig || !serverConfig.llm) return;
+  if (key.length < 2 || variantCache.has(key)) return;
+  variantCache.set(key, []); // claim it, so a burst of keystrokes asks once
+  try {
+    const r = await fetch('/api/llm/variants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: key }),
+    });
+    const j = await r.json();
+    if (!r.ok || !Array.isArray(j.variants) || !j.variants.length) return;
+    variantCache.set(key, j.variants);
+    if (state.query.trim().toLowerCase() === key) renderEpgHits(); // still the live query
+  } catch {}
+}
+
 function scheduleEpgHits() {
   clearTimeout(epgHitsTimer);
   epgHitsTimer = setTimeout(renderEpgHits, 180);
@@ -430,8 +505,10 @@ function renderEpgHits() {
     hitsEl.innerHTML = '';
     return;
   }
-  const hits = searchProgrammes(q);
+  let hits = searchProgrammes(q, variantsFor(q));
   if (!hits.length) {
+    // Nothing locally: the guide may only carry this in another script.
+    askVariants(q);
     hitsEl.hidden = true;
     hitsEl.innerHTML = '';
     return;
@@ -988,8 +1065,65 @@ $('searchResults').addEventListener('click', (e) => {
 // ── programme detail ──────────────────────────────────────────────────────
 
 let detailChan = -1;
+let detailProg = null;
+
+// Non-Latin text the viewer most likely cannot read — worth offering a translation.
+const NON_LATIN = /[Ѐ-ӿ؀-ۿ֐-׿Ͱ-Ͽ]/;
+
+let detailOriginal = null;    // what the guide actually says
+let detailTranslated = null;  // fetched once per programme
+let showingTranslation = false;
+
+function showDetailText(v) {
+  $('dTitle').textContent = v.t;
+  $('dDesc').textContent = v.d;
+}
+
+$('dTranslate').addEventListener('click', async () => {
+  const btn = $('dTranslate');
+  if (!detailProg || !detailOriginal) return;
+
+  if (showingTranslation) {
+    showDetailText(detailOriginal);
+    showingTranslation = false;
+    btn.textContent = 'Přeložit';
+    return;
+  }
+  if (detailTranslated) {
+    showDetailText(detailTranslated);
+    showingTranslation = true;
+    btn.textContent = 'Původní znění';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Překládám…';
+  try {
+    const r = await fetch('/api/llm/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: detailProg.t, desc: detailProg.d || '' }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+    detailTranslated = {
+      t: j.title || detailOriginal.t,
+      d: j.desc || detailOriginal.d,
+    };
+    showDetailText(detailTranslated);
+    showingTranslation = true;
+    btn.textContent = 'Původní znění';
+  } catch (e) {
+    toast('Překlad selhal: ' + (e.message || e), 4000);
+    btn.textContent = 'Přeložit';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 function openDetail(p, chanIdx) {
   detailChan = chanIdx;
+  detailProg = p;
   const c = state.channels[chanIdx];
   const now = Date.now();
   const live = p.s <= now && now < p.e;
@@ -1002,6 +1136,15 @@ function openDetail(p, chanIdx) {
   const wrap = $('dBarWrap');
   wrap.hidden = !live;
   if (live) $('dBar').style.width = (((now - p.s) / (p.e - p.s)) * 100).toFixed(1) + '%';
+
+  const btn = $('dTranslate');
+  btn.textContent = 'Přeložit';
+  btn.disabled = false;
+  detailOriginal = { t: $('dTitle').textContent, d: $('dDesc').textContent };
+  detailTranslated = null;
+  showingTranslation = false;
+  btn.hidden = !(serverConfig && serverConfig.llm && NON_LATIN.test(p.t + ' ' + (p.d || '')));
+
   $('detailBackdrop').hidden = false;
 }
 const closeDetail = () => ($('detailBackdrop').hidden = true);
