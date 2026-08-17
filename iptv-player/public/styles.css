@@ -62,9 +62,13 @@ svg [fill="none"], svg path[fill="none"], svg rect[fill="none"], svg circle[fill
 
 .app {
   display: grid;
-  grid-template-columns: var(--side-w) 1fr;
+  /* minmax(0, …) rather than 1fr: a plain fr track takes its minimum from the
+     content, so one wide item — a long group name, a nowrap title — widens the
+     track past the viewport and drags the player off screen with it. */
+  grid-template-columns: var(--side-w) minmax(0, 1fr);
   height: 100vh;
   height: 100dvh;
+  overflow: hidden;
 }
 
 /* sidebar sits first in DOM but renders left */
@@ -74,12 +78,13 @@ svg [fill="none"], svg path[fill="none"], svg rect[fill="none"], svg circle[fill
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   background: linear-gradient(180deg, var(--bg-2), var(--panel));
   border-right: 1px solid var(--line);
   transition: transform .28s var(--ease);
   z-index: 20;
 }
-.app.hide-side { grid-template-columns: 0 1fr; }
+.app.hide-side { grid-template-columns: 0 minmax(0, 1fr); }
 .app.hide-side .sidebar { transform: translateX(-100%); }
 
 .stage {
@@ -145,6 +150,9 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
   display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden;
   padding: 0 14px 10px; scrollbar-width: none;
   border-bottom: 1px solid var(--line-soft);
+  /* Group names can be long ("Auto;Outdoor;Series;Sports"). Without this the
+     row's own minimum is the sum of every chip, which widened the whole page. */
+  min-width: 0;
 }
 .groups::-webkit-scrollbar { display: none; }
 .chip {
@@ -153,6 +161,8 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
   background: var(--panel-2); color: var(--txt-2);
   font-size: 13px; white-space: nowrap; cursor: pointer;
   transition: .16s var(--ease);
+  /* a single absurd group name should not own the whole row */
+  max-width: 60vw; overflow: hidden; text-overflow: ellipsis;
 }
 .chip:hover { color: var(--txt); border-color: #33405a; }
 .chip.on { background: var(--accent); border-color: var(--accent); color: #05121f; font-weight: 600; }
@@ -161,7 +171,7 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
 
 /* ── channel list ─────────────────────────────────────────────────────── */
 
-.chan-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 8px 8px; }
+.chan-list { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 8px 8px; }
 
 .row {
   display: grid;
@@ -384,7 +394,7 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
   background: var(--bg-2); flex: 0 0 auto;
 }
 .guide-head h2 { margin: 0; font-size: 17px; font-weight: 600; white-space: nowrap; }
-.guide-search { flex: 1; max-width: 420px; }
+.guide-search { flex: 1; min-width: 0; max-width: 420px; }
 .guide-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 .btn {
@@ -435,7 +445,7 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
 .gname .n { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gname .no { font-size: 11px; color: var(--txt-3); }
 
-.guide-grid { flex: 1; overflow: auto; position: relative; overscroll-behavior: contain; }
+.guide-grid { flex: 1; min-width: 0; overflow: auto; position: relative; overscroll-behavior: contain; }
 .grid-inner { position: relative; }
 
 .pblock {
