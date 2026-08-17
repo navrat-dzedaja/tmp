@@ -18,6 +18,7 @@ const fs = require('fs');
 const { Readable } = require('stream');
 const dns = require('dns').promises;
 const net = require('net');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 8098;
 const UA = process.env.UPSTREAM_UA || 'VLC/3.0.20 LibVLC/3.0.20';
@@ -30,7 +31,42 @@ const EPG_FUTURE_MS = 48 * 3600 * 1000;
 
 const app = express();
 app.use(compression());
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', index: 'index.html' }));
+
+// --- cache busting -----------------------------------------------------------
+// The asset names never change, so a plain max-age lets a browser (or the
+// Cloudflare edge in front of it) pair a cached index.html with a freshly
+// deployed app.js, or the reverse. That mix renders a broken page that clearing
+// browser data cannot fix, because the stale copy lives at the edge.
+// So: the entry point is never cached, and everything it references carries a
+// build stamp, which changes whenever any of these files change.
+const PUBLIC_DIR = path.join(__dirname, 'public');
+
+function buildStamp() {
+  const h = crypto.createHash('sha1');
+  for (const f of ['index.html', 'app.js', 'styles.css']) {
+    try { h.update(fs.readFileSync(path.join(PUBLIC_DIR, f))); } catch {}
+  }
+  return h.digest('hex').slice(0, 10);
+}
+const BUILD = buildStamp();
+
+const INDEX_HTML = (() => {
+  let html = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
+  for (const asset of ['/styles.css', '/app.js', '/brand-logo']) {
+    html = html.split(`"${asset}"`).join(`"${asset}?v=${BUILD}"`);
+  }
+  return html;
+})();
+
+function sendIndex(_req, res) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store, must-revalidate');
+  res.send(INDEX_HTML);
+}
+app.get('/', sendIndex);
+app.get('/index.html', sendIndex);
+
+app.use(express.static(PUBLIC_DIR, { maxAge: '1h', index: false }));
 app.use('/vendor', express.static(path.join(__dirname, 'node_modules/hls.js/dist'), { maxAge: '7d' }));
 
 // ---------------------------------------------------------------------------

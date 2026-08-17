@@ -551,6 +551,10 @@ input[type=search]::-webkit-search-cancel-button { filter: invert(.6); cursor: p
   .stage {
     grid-column: 1; grid-row: 1;
     width: 100%; aspect-ratio: 16 / 9; height: auto;
+    /* Belt and braces: if aspect-ratio ever fails to constrain (an odd browser
+       state, a half-applied stylesheet), the picture must still not swallow the
+       screen and push the channel list out of sight. */
+    min-height: 0; max-height: 56dvh;
   }
   .sidebar {
     grid-column: 1; grid-row: 2; min-height: 0;
