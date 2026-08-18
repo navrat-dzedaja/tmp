@@ -1,0 +1,496 @@
+<title>Rent Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+{{LEAFLET_CSS}}
+</style>
+<style>
+  :root {
+    --bg: #f3f1ec;
+    --surface: #ffffff;
+    --surface-2: #eae6dc;
+    --border: #ddd6c8;
+    --ink: #1e2a32;
+    --ink-muted: #5d6870;
+    --ink-faint: #8a8f8b;
+    --accent: #24455f;
+    --accent-2: #3e7ca6;
+    --accent-ink: #ffffff;
+    --map-bg: #dce6ea;
+    --map-outline: #ffffff;
+    --nodata: #c9c3b6;
+    --focus: #3e7ca6;
+    --seq-0: #fdf3e2;
+    --seq-1: #f6d9a6;
+    --seq-2: #eeb264;
+    --seq-3: #dd8a3c;
+    --seq-4: #b65e28;
+    --seq-5: #7c3a1c;
+    --div-lo: #2e6e9e;
+    --div-mid: #ddd6c8;
+    --div-hi: #b65e28;
+    --shadow: 0 1px 2px rgba(30, 42, 50, 0.06), 0 8px 24px -8px rgba(30, 42, 50, 0.18);
+    --radius: 10px;
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181c;
+      --surface: #1b2126;
+      --surface-2: #232b31;
+      --border: #313b42;
+      --ink: #edeeec;
+      --ink-muted: #9aa6ac;
+      --ink-faint: #6e787e;
+      --accent: #7fb2d6;
+      --accent-2: #4f8fb8;
+      --accent-ink: #0e1418;
+      --map-bg: #10171b;
+      --map-outline: #14181c;
+      --nodata: #3a4249;
+      --focus: #7fb2d6;
+      --seq-0: #3a2a1c;
+      --seq-1: #5f3f22;
+      --seq-2: #8a5a2c;
+      --seq-3: #c1863f;
+      --seq-4: #eab26a;
+      --seq-5: #fbe3b8;
+      --div-lo: #6facd2;
+      --div-mid: #454d54;
+      --div-hi: #e0a160;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181c;
+    --surface: #1b2126;
+    --surface-2: #232b31;
+    --border: #313b42;
+    --ink: #edeeec;
+    --ink-muted: #9aa6ac;
+    --ink-faint: #6e787e;
+    --accent: #7fb2d6;
+    --accent-2: #4f8fb8;
+    --accent-ink: #0e1418;
+    --map-bg: #10171b;
+    --map-outline: #14181c;
+    --nodata: #3a4249;
+    --focus: #7fb2d6;
+    --seq-0: #3a2a1c;
+    --seq-1: #5f3f22;
+    --seq-2: #8a5a2c;
+    --seq-3: #c1863f;
+    --seq-4: #eab26a;
+    --seq-5: #fbe3b8;
+    --div-lo: #6facd2;
+    --div-mid: #454d54;
+    --div-hi: #e0a160;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
+  button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+  ::selection { background: var(--accent-2); color: var(--accent-ink); }
+
+  a { color: var(--accent-2); }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  header.top {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+  header.top .brand { display: flex; align-items: baseline; gap: 10px; }
+  header.top h1 { font-size: 21px; letter-spacing: -0.01em; }
+  header.top .kicker {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  header.top .subtitle { color: var(--ink-muted); font-size: 12.5px; margin-left: auto; text-align: right; }
+  header.top .subtitle strong { color: var(--ink); font-weight: 600; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .seg {
+    display: inline-flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+  }
+  .seg button {
+    border: none;
+    background: transparent;
+    color: var(--ink-muted);
+    padding: 5px 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 500;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button.active { background: var(--accent); color: var(--accent-ink); }
+  .seg button:focus-visible, select:focus-visible, input:focus-visible, .icon-btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  select.ctl {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 28px 6px 10px;
+    cursor: pointer;
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-muted) 50%), linear-gradient(135deg, var(--ink-muted) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 55%, calc(100% - 9px) 55%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    min-width: 132px;
+  }
+
+  .time-field { flex: 1 1 260px; min-width: 220px; }
+  .time-row { display: flex; align-items: center; gap: 8px; }
+  .time-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+    height: 4px;
+  }
+  .month-label {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    min-width: 78px;
+    text-align: right;
+  }
+  .icon-btn {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+  .icon-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
+
+  .search-field { margin-left: auto; }
+  .search-field input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    width: 210px;
+  }
+
+  main.stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+  #map { position: absolute; inset: 0; background: var(--map-bg); }
+  .leaflet-container { font-family: var(--font-body); background: var(--map-bg); }
+
+  .rt-tooltip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  .rt-tooltip .tt-name { font-weight: 600; margin-bottom: 2px; }
+  .rt-tooltip .tt-val { font-family: var(--font-mono); color: var(--ink-muted); }
+  .leaflet-tooltip-top.rt-tooltip::before { border-top-color: var(--border); }
+
+  .legend-card {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 12px 14px;
+    width: 220px;
+    z-index: 500;
+  }
+  .legend-card h3 { font-size: 12px; font-family: var(--font-body); font-weight: 600; margin-bottom: 2px; }
+  .legend-card .legend-sub { font-size: 11px; color: var(--ink-muted); margin-bottom: 8px; }
+  .legend-bar { height: 10px; border-radius: 5px; margin-bottom: 4px; border: 1px solid var(--border); }
+  .legend-ticks { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-muted); }
+  .legend-nodata { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; color: var(--ink-muted); }
+  .legend-nodata i { width: 10px; height: 10px; border-radius: 3px; background: var(--nodata); display: inline-block; border: 1px solid var(--border); }
+
+  .zoom-hint {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 6px 8px;
+    z-index: 500;
+    display: flex;
+    gap: 4px;
+  }
+
+  .panel {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    top: 16px;
+    width: 296px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 600;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+  }
+  .panel.hidden { transform: translateX(12px); opacity: 0; pointer-events: none; }
+  .panel-head {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .panel-head .titles { flex: 1; min-width: 0; }
+  .panel-head h2 { font-size: 17px; line-height: 1.2; }
+  .panel-head .region-tag { font-size: 11.5px; color: var(--ink-muted); margin-top: 3px; }
+  .panel-close {
+    border: none; background: transparent; color: var(--ink-faint);
+    cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px;
+  }
+  .panel-close:hover { color: var(--ink); }
+  .panel-body { padding: 14px 16px 16px; overflow-y: auto; }
+
+  .hero-stat { margin-bottom: 14px; }
+  .hero-stat .label { font-size: 11px; color: var(--ink-muted); }
+  .hero-stat .value { font-family: var(--font-display); font-size: 32px; line-height: 1.1; }
+  .hero-stat .value .unit { font-size: 16px; color: var(--ink-muted); font-family: var(--font-body); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .stat-tile {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .stat-tile .label { font-size: 10.5px; color: var(--ink-muted); margin-bottom: 2px; }
+  .stat-tile .value { font-family: var(--font-mono); font-size: 15px; }
+  .stat-tile .value.up { color: var(--seq-4); }
+  .stat-tile .value.down { color: var(--div-lo); }
+
+  .spark-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .spark-head h3 { font-size: 12px; font-weight: 600; }
+  .spark-head span { font-size: 10.5px; color: var(--ink-faint); font-family: var(--font-mono); }
+  .sparkline-wrap { border: 1px solid var(--border); border-radius: 8px; padding: 8px 6px 4px; background: var(--surface-2); }
+
+  .panel-empty { padding: 24px 16px; color: var(--ink-muted); font-size: 13px; }
+  .panel-empty b { color: var(--ink); }
+
+  .about-toggle {
+    position: absolute;
+    left: 62px;
+    top: 16px;
+    z-index: 500;
+  }
+  .about-toggle button {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink-muted);
+    cursor: pointer; box-shadow: var(--shadow); font-family: var(--font-display); font-style: italic; font-size: 15px;
+  }
+  .about-toggle button:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .about-pop {
+    position: absolute;
+    top: 54px; left: 0;
+    width: 300px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    display: none;
+  }
+  .about-pop.open { display: block; }
+  .about-pop h3 { font-size: 13px; color: var(--ink); margin-bottom: 6px; }
+  .about-pop p { margin: 0 0 8px; }
+  .about-pop p:last-child { margin-bottom: 0; }
+
+  @media (max-width: 860px) {
+    header.top .subtitle { display: none; }
+    .search-field { margin-left: 0; width: 100%; order: 5; }
+    .search-field input { width: 100%; }
+    .panel { left: 12px; right: 12px; top: auto; bottom: 12px; width: auto; max-height: 55vh; }
+    .legend-card { width: 168px; }
+  }
+
+  .leaflet-control-attribution { display: none; }
+
+  .leaflet-bar {
+    border: 1px solid var(--border) !important;
+    box-shadow: var(--shadow) !important;
+  }
+  .leaflet-bar a {
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    border-bottom-color: var(--border) !important;
+  }
+  .leaflet-bar a:hover { background: var(--surface-2) !important; }
+  .leaflet-bar a.leaflet-disabled { color: var(--ink-faint) !important; }
+</style>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Rent Atlas</h1>
+      <span class="kicker">Great&nbsp;Britain</span>
+    </div>
+    <div class="subtitle">Zdroj: ONS &mdash; Price Index of Private Rents, UK: monthly price statistics · <strong id="periodLabel">2015&ndash;2026</strong></div>
+  </header>
+
+  <div class="toolbar">
+    <div class="field">
+      <label for="levelSeg">Úroveň</label>
+      <div class="seg" id="levelSeg" role="group" aria-label="Geografická úroveň">
+        <button data-level="local" class="active">Místní obvody</button>
+        <button data-level="region">Regiony</button>
+        <button data-level="country">Země</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="catSel">Velikost bytu</label>
+      <select id="catSel" class="ctl"></select>
+    </div>
+
+    <div class="field">
+      <label for="metricSel">Ukazatel</label>
+      <select id="metricSel" class="ctl">
+        <option value="price">Průměrné nájemné (£/měs.)</option>
+        <option value="index">Index nájmů (leden 2015 = 100)</option>
+        <option value="yoy">Meziroční změna (%)</option>
+        <option value="mom">Měsíční změna (%)</option>
+      </select>
+    </div>
+
+    <div class="field time-field">
+      <label for="monthRange">Období</label>
+      <div class="time-row">
+        <button class="icon-btn" id="playBtn" title="Přehrát vývoj v čase" aria-label="Přehrát vývoj v čase">▶</button>
+        <input type="range" id="monthRange" min="0" max="1" value="1" step="1" />
+        <span class="month-label tnum" id="monthLabel">–</span>
+      </div>
+    </div>
+
+    <div class="field search-field">
+      <label for="searchInput">Hledat oblast</label>
+      <input type="text" id="searchInput" list="areaList" placeholder="např. Manchester…" autocomplete="off" />
+      <datalist id="areaList"></datalist>
+    </div>
+  </div>
+
+  <main class="stage">
+    <div id="map"></div>
+
+    <div class="about-toggle">
+      <button id="aboutBtn" aria-haspopup="true" aria-expanded="false" title="O datech">i</button>
+      <div class="about-pop" id="aboutPop">
+        <h3>O této mapě</h3>
+        <p>Data: Office for National Statistics, <em>Price Index of Private Rents, UK: monthly price statistics</em> (vydání červenec 2026). Pokrývá leden 2015 &ndash; červen 2026.</p>
+        <p>Skotsko je zobrazeno v 18 oblastech Broad Rental Market Area (tak, jak je ONS/Rent Service Scotland publikuje), nikoli podle 32 radničních obvodů &ndash; hranice vznikly sloučením council areas do BRMA. Anglické a velšské místní obvody odpovídají aktuálním hranicím (2023+); tam, kde se od roku 2013 sloučily (např. Cumberland, Somerset, Buckinghamshire), byly hranice pro tuto mapu sloučeny odpovídajícím způsobem.</p>
+        <p>Severní Irsko není v datové sadě součástí Velké Británie, proto zde není zobrazeno.</p>
+        <p>Hranice: martinjc/UK-GeoJSON (ONS/OS Open Data).</p>
+      </div>
+    </div>
+
+    <div class="legend-card" id="legendCard">
+      <h3 id="legendTitle">Průměrné nájemné</h3>
+      <div class="legend-sub" id="legendSub">Vše &middot; červen 2026</div>
+      <div class="legend-bar" id="legendBar"></div>
+      <div class="legend-ticks">
+        <span id="legendMin" class="tnum">–</span>
+        <span id="legendMax" class="tnum">–</span>
+      </div>
+      <div class="legend-nodata"><i></i> Data nejsou k dispozici</div>
+    </div>
+
+    <aside class="panel hidden" id="panel">
+      <div class="panel-head">
+        <div class="titles">
+          <h2 id="panelName">–</h2>
+          <div class="region-tag" id="panelRegion"></div>
+        </div>
+        <button class="panel-close" id="panelClose" aria-label="Zavřít">✕</button>
+      </div>
+      <div class="panel-body" id="panelBody"></div>
+    </aside>
+  </main>
+</div>
+
+<script>
+{{LEAFLET_JS}}
+</script>
+<script>
+  var GEO = { local: {{GEO_LOCAL_JSON}}, region: {{GEO_REGION_JSON}}, country: {{GEO_COUNTRY_JSON}} };
+  var RENT = {{RENT_DATA_JSON}};
+</script>
+<script>
+{{APP_JS}}
+</script>
