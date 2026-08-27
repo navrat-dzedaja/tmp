@@ -1,0 +1,41 @@
+# Copy this file to config.yaml and edit for your leagues/sources.
+# No secrets belong here - those come from environment variables (.env).
+
+timezone: "Europe/Vienna"
+
+# Cron expression for when the digest runs; can also be set via DIGEST_CRON env var
+# (env var takes precedence if set). Default here: 08:00 every day.
+digest_cron: "0 8 * * *"
+
+# How many days ahead to look for upcoming fixtures.
+fixture_lookahead_days: 7
+
+# How many hours back to consider RSS/news items "recent".
+news_max_age_hours: 48
+
+leagues:
+  - name: "Premier League"
+    competition_code: "PL"          # football-data.org competition code
+    rss_feeds:
+      - "https://www.theguardian.com/football/premierleague/rss"
+      - "https://www.skysports.com/rss/12040"
+    scrape_targets: []
+
+  - name: "Bundesliga"
+    competition_code: "BL1"
+    rss_feeds:
+      - "https://www.bundesliga.com/en/bundesliga/feed"
+    scrape_targets:
+      - name: "kicker-bundesliga-news"
+        url: "https://www.kicker.de/bundesliga/news"
+        item_selector: "article"
+        title_selector: "h2"
+        link_selector: "a"
+        link_attr: "href"
+        base_url: "https://www.kicker.de"
+
+  - name: "La Liga"
+    competition_code: "PD"
+    rss_feeds:
+      - "https://www.marca.com/rss/en/football/laliga.xml"
+    scrape_targets: []
