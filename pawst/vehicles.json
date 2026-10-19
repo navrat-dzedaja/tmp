@@ -1,0 +1,6 @@
+[
+  { "id": "car",   "name": "Car",   "domain": "land",  "speedKmh": 70,  "departsEveryHours": 0,  "costCoins": 20, "unlockXp": 0,   "routingProfile": "driving-car" },
+  { "id": "ship",  "name": "Ship",  "domain": "water", "speedKmh": 35,  "departsEveryHours": 12, "costCoins": 50, "unlockXp": 0,   "hub": "port" },
+  { "id": "plane", "name": "Plane", "domain": "air",   "speedKmh": 800, "departsEveryHours": 6,  "costCoins": 150, "unlockXp": 0,  "hub": "airport" },
+  { "id": "ark",   "name": "Ark",   "domain": "water", "speedKmh": 10,  "departsEveryHours": 24, "costCoins": 0,  "unlockXp": 800, "hub": "port" }
+]

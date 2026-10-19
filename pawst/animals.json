@@ -1,0 +1,18 @@
+[
+  { "id": "microbe",    "name": "Microbe",    "domain": "land",  "speedKmh": 0.0001, "activeHours": 24, "mealEveryHours": null, "maxLegKm": null, "unlockXp": 0,    "maxRangeKm": 0.01, "extinct": false },
+  { "id": "snail",      "name": "Snail",      "domain": "land",  "speedKmh": 0.05,   "activeHours": 8,  "mealEveryHours": 2,    "maxLegKm": null, "unlockXp": 0,    "extinct": false },
+  { "id": "hamster",    "name": "Hamster",    "domain": "land",  "speedKmh": 2,      "activeHours": 6,  "mealEveryHours": 1,    "maxLegKm": null, "unlockXp": 0,    "extinct": false },
+  { "id": "tortoise",   "name": "Tortoise",   "domain": "land",  "speedKmh": 0.3,    "activeHours": 8,  "mealEveryHours": 3,    "maxLegKm": null, "unlockXp": 0,    "extinct": false },
+  { "id": "husky",      "name": "Husky",      "domain": "land",  "speedKmh": 15,     "activeHours": 10, "mealEveryHours": 4,    "maxLegKm": null, "unlockXp": 100,  "extinct": false },
+  { "id": "horse",      "name": "Horse",      "domain": "land",  "speedKmh": 20,     "activeHours": 8,  "mealEveryHours": 3,    "maxLegKm": null, "unlockXp": 300,  "extinct": false },
+  { "id": "elephant",   "name": "Elephant",   "domain": "land",  "speedKmh": 6,      "activeHours": 14, "mealEveryHours": 1,    "maxLegKm": null, "unlockXp": 600,  "extinct": false },
+  { "id": "pigeon",     "name": "Pigeon",     "domain": "air",   "speedKmh": 80,     "activeHours": 10, "mealEveryHours": 4,    "maxLegKm": 1000, "unlockXp": 0,    "extinct": false },
+  { "id": "swift",      "name": "Swift",      "domain": "air",   "speedKmh": 100,    "activeHours": 20, "mealEveryHours": 6,    "maxLegKm": 3000, "unlockXp": 200,  "extinct": false },
+  { "id": "albatross",  "name": "Albatross",  "domain": "air",   "speedKmh": 60,     "activeHours": 16, "mealEveryHours": 8,    "maxLegKm": 6000, "unlockXp": 500,  "extinct": false },
+  { "id": "sea_turtle", "name": "Sea turtle", "domain": "water", "speedKmh": 2,      "activeHours": 24, "mealEveryHours": 6,    "maxLegKm": null, "unlockXp": 0,    "extinct": false },
+  { "id": "dolphin",    "name": "Dolphin",    "domain": "water", "speedKmh": 15,     "activeHours": 20, "mealEveryHours": 2,    "maxLegKm": null, "unlockXp": 200,  "extinct": false },
+  { "id": "mammoth",    "name": "Mammoth",    "domain": "land",  "speedKmh": 5,      "activeHours": 10, "mealEveryHours": 1,    "maxLegKm": null, "unlockXp": 1500, "extinct": true },
+  { "id": "trex",       "name": "T. rex",     "domain": "land",  "speedKmh": 20,     "activeHours": 4,  "mealEveryHours": 2,    "maxLegKm": null, "unlockXp": 2000, "extinct": true },
+  { "id": "pteranodon", "name": "Pteranodon", "domain": "air",   "speedKmh": 50,     "activeHours": 12, "mealEveryHours": 4,    "maxLegKm": 2000, "unlockXp": 2000, "extinct": true },
+  { "id": "megalodon",  "name": "Megalodon",  "domain": "water", "speedKmh": 20,     "activeHours": 18, "mealEveryHours": 1,    "maxLegKm": null, "unlockXp": 2500, "extinct": true }
+]
