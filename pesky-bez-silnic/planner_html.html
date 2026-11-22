@@ -65,9 +65,14 @@
         <div class="rbars" id="r-bars"></div>
         <p id="r-text"></p>
         <div class="gpx">
-          <div class="listhead"><h2 id="h-gpx">GPX pro mapy.cz nebo Garmin</h2><button type="button" class="chip" id="r-copy">Kopírovat</button></div>
+          <h2 id="h-gpx">Trasa ve formátu GPX</h2>
+          <div class="row gpxbtns">
+            <button type="button" class="primary small" id="r-dl" hidden>Stáhnout GPX</button>
+            <button type="button" class="chip" id="r-copy">Kopírovat text</button>
+          </div>
+          <p class="hint" id="r-dlmsg" role="status"></p>
           <textarea id="r-gpx" readonly rows="4" aria-labelledby="h-gpx"></textarea>
-          <p class="hint">Text uložte jako soubor s příponou .gpx a importujte do aplikace.</p>
+          <p class="hint" id="r-gpxhint">Text uložte jako soubor s příponou .gpx a importujte do aplikace (Mapy.com, Garmin, OsmAnd).</p>
         </div>
       </section>
 

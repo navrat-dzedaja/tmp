@@ -313,7 +313,33 @@ $('p-coord-to').onclick=()=>coordSet('to');
 $('p-go').onclick=run;
 $('pv-land').onclick=()=>{S.view='land';$('pv-land').setAttribute('aria-pressed','true');$('pv-cost').setAttribute('aria-pressed','false');legend();planLayer.redraw();};
 $('pv-cost').onclick=()=>{S.view='cost';$('pv-land').setAttribute('aria-pressed','false');$('pv-cost').setAttribute('aria-pressed','true');legend();planLayer.redraw();};
-$('r-copy').onclick=()=>{const ta=$('r-gpx'); const done=()=>{$('r-copy').textContent='Zkopírováno';setTimeout(()=>$('r-copy').textContent='Kopírovat',1500);};
+// --- GPX download: the viewer's save dialog only takes allowlisted types, so the .gpx goes inside a .zip
+let DL=null;
+try{ if(window.claude&&typeof window.claude.use==='function') window.claude.use('downloads').then(d=>{DL=d; $('r-dl').hidden=!d;
+  if(d) $('r-gpxhint').textContent='Stažený .zip obsahuje soubor .gpx. Rozbalte ho a nahrajte do aplikace (Mapy.com, Garmin, OsmAnd). Nebo zkopírujte text a uložte ho jako .gpx.';}).catch(()=>{}); }catch(e){}
+function crc32(u8){let crc=0xFFFFFFFF;for(let i=0;i<u8.length;i++){let c=(crc^u8[i])&0xFF;for(let k=0;k<8;k++)c=c&1?(c>>>1)^0xEDB88320:c>>>1;crc=(crc>>>8)^c;}return (crc^0xFFFFFFFF)>>>0;}
+function zipOne(name,text){
+  const enc=new TextEncoder(), data=enc.encode(text), fn=enc.encode(name), crc=crc32(data);
+  const lh=new Uint8Array(30+fn.length), a=new DataView(lh.buffer);
+  a.setUint32(0,0x04034b50,true);a.setUint16(4,20,true);a.setUint16(6,0x0800,true);a.setUint16(12,0x21,true);a.setUint32(14,crc,true);a.setUint32(18,data.length,true);a.setUint32(22,data.length,true);a.setUint16(26,fn.length,true);lh.set(fn,30);
+  const ch=new Uint8Array(46+fn.length), c=new DataView(ch.buffer);
+  c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,fn.length,true);ch.set(fn,46);
+  const end=new Uint8Array(22), e=new DataView(end.buffer);
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,1,true);e.setUint16(10,1,true);e.setUint32(12,ch.length,true);e.setUint32(16,lh.length+data.length,true);
+  return new Blob([lh,data,ch,end]);
+}
+const slug=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'trasa';
+$('r-dl').onclick=async()=>{
+  if(!DL||!$('r-gpx').value) return;
+  const b=$('r-dl'), name=slug($('r-title').textContent); $('r-dlmsg').textContent='';
+  try{ await DL.save({filename:name+'-gpx.zip',data:zipOne(name+'.gpx',$('r-gpx').value)});
+    b.textContent='Staženo'; setTimeout(()=>{b.textContent='Stáhnout GPX';},1800); }
+  catch(err){ const code=err&&err.code;
+    if(code==='declined'){ $('r-dlmsg').textContent='Stažení jste zrušili. Tlačítkem to můžete zkusit znovu.'; }
+    else if(code==='rate_limited'){ $('r-dlmsg').textContent='Dialog pro uložení je už otevřený, nebo jich bylo moc najednou. Chvíli počkejte.'; }
+    else { $('r-dlmsg').textContent='Stažení tady není dostupné. Použijte Kopírovat text.'; b.hidden=true; } }
+};
+$('r-copy').onclick=()=>{const ta=$('r-gpx'); const done=()=>{$('r-copy').textContent='Zkopírováno';setTimeout(()=>$('r-copy').textContent='Kopírovat text',1500);};
   try{navigator.clipboard.writeText(ta.value).then(done,()=>{ta.focus();ta.select();});}catch(e){ta.focus();ta.select();}};
 
 // readout & click hooks (called from the main map script)
