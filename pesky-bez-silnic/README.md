@@ -15,3 +15,11 @@ Pipeline (spouštět z pracovní složky se složkami `dl/`, `code/`, `site/`):
 8. `page.html` – stránka (Leaflet 1.9.4, CRS.Simple); CSS Leafletu se vkládá místo `/*LEAFLETCSS*/`.
 
 Data: CORINE Land Cover 2018 © EEA/Copernicus · © přispěvatelé OpenStreetMap (ODbL) přes Overture Maps · © EuroGeographics (GISCO) · Natural Earth.
+
+## Plánovač trasy (Česko a okolí, 100 m)
+
+9. `bld_meta2.py`, `bld_fetch.py` – patičky parquet souborů budov z Overture Maps a počty budov v buňkách 100 m (jen bbox sloupce, `httpfile.py` čte přes HTTP range).
+10. `win_roads.py` – všechny třídy silnic, cest, pěšin a železnic + mosty, rasterizace na 100 m.
+11. `plan_tiles.py` – dlaždice `p/{x}_{y}.png`: R = třída CORINE | most | budova, G = bity silnic, B = vzdálenost k budově (×10 m).
+12. `route_core.js` – cenový povrch, A* (8 sousedů, bez řezání rohů), odstup od silnic, únikové okolí startu a cíle, statistiky.
+13. `planner.js`, `planner_html.html`, `laea.js` – UI plánovače, převod EPSG:3035 ↔ WGS84, export GPX. `build.py` skládá výslednou stránku.

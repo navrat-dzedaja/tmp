@@ -1,0 +1,89 @@
+    <div id="mode-plan" class="mode" hidden>
+      <section aria-labelledby="h-od">
+        <h2 id="h-od">Odkud a kam</h2>
+        <div class="pts">
+          <div class="pt">
+            <label for="p-from"><span class="dot s" aria-hidden="true"></span>Start</label>
+            <select id="p-from"></select>
+            <button type="button" class="chip" id="pick-from" aria-pressed="false">Kliknout do mapy</button>
+          </div>
+          <div class="pt">
+            <label for="p-to"><span class="dot e" aria-hidden="true"></span>Cíl</label>
+            <select id="p-to"></select>
+            <button type="button" class="chip" id="pick-to" aria-pressed="false">Kliknout do mapy</button>
+          </div>
+        </div>
+        <div class="coordrow">
+          <input id="p-coord" type="text" inputmode="decimal" placeholder="nebo souřadnice: 49.82, 18.26" aria-label="Souřadnice bodu">
+          <button type="button" class="chip" id="p-coord-from">Jako start</button>
+          <button type="button" class="chip" id="p-coord-to">Jako cíl</button>
+          <button type="button" class="chip" id="p-swap" title="Prohodit start a cíl">⇅ Prohodit</button>
+        </div>
+        <p class="hint" id="p-hint"></p>
+      </section>
+
+      <section aria-labelledby="h-prof">
+        <h2 id="h-prof">Profil</h2>
+        <div class="seg" role="group" aria-label="Profil trasy">
+          <button type="button" data-prof="hidden" id="pr-hidden"><b>Nepozorovaně</b><span>daleko od lidí</span></button>
+          <button type="button" data-prof="balanced" id="pr-balanced"><b>Vyváženě</b><span>krytě, ale rozumně</span></button>
+          <button type="button" data-prof="short" id="pr-short"><b>Nejkratší</b><span>pěšky přímo</span></button>
+        </div>
+        <p class="vdesc" id="prof-desc"></p>
+      </section>
+
+      <section class="filters" aria-label="Filtry">
+        <details open>
+          <summary>Lidé a budovy</summary>
+          <div class="frow sl"><label for="f-bR">Odstup od budov</label><input type="range" id="f-bR" min="0" max="2500" step="100"><output id="o-bR"></output></div>
+          <div class="frow sl"><label for="f-bS">Jak moc se vyhýbat</label><input type="range" id="f-bS" min="0" max="20" step="1"><output id="o-bS"></output></div>
+          <div class="frow"><label for="f-bCell">Projít kolem budovy</label><select id="f-bCell"><option value="0">nevadí</option><option value="15">vyhnout se</option><option value="inf">zakázat</option></select></div>
+          <div class="frow sl"><label for="f-rR">Odstup od velkých silnic</label><input type="range" id="f-rR" min="0" max="1500" step="100"><output id="o-rR"></output></div>
+        </details>
+        <details>
+          <summary>Krajina</summary>
+          <div id="f-land"></div>
+        </details>
+        <details>
+          <summary>Silnice, železnice a cesty</summary>
+          <div id="f-roads"></div>
+        </details>
+      </section>
+
+      <div class="gorow">
+        <button type="button" class="primary" id="p-go">Najít trasu</button>
+        <span class="status" id="p-status" role="status"></span>
+      </div>
+      <div class="tog" role="group" aria-label="Zobrazení podkladu">
+        <button type="button" id="pv-land" aria-pressed="true">Krajina a budovy</button>
+        <button type="button" id="pv-cost" aria-pressed="false">Náročnost podle filtrů</button>
+      </div>
+
+      <section id="p-result" class="story" hidden aria-labelledby="h-res">
+        <h3 id="h-res"><span class="blaze" aria-hidden="true"></span><span id="r-title">Trasa</span></h3>
+        <div class="rgrid" id="r-grid"></div>
+        <div class="rbars" id="r-bars"></div>
+        <p id="r-text"></p>
+        <div class="gpx">
+          <div class="listhead"><h2 id="h-gpx">GPX pro mapy.cz nebo Garmin</h2><button type="button" class="chip" id="r-copy">Kopírovat</button></div>
+          <textarea id="r-gpx" readonly rows="4" aria-labelledby="h-gpx"></textarea>
+          <p class="hint">Text uložte jako soubor s příponou .gpx a importujte do aplikace.</p>
+        </div>
+      </section>
+
+      <section aria-labelledby="h-pleg">
+        <h2 id="h-pleg">Legenda podkladu</h2>
+        <div id="p-legend"></div>
+      </section>
+
+      <details>
+        <summary>Jak plánovač počítá</summary>
+        <ul>
+          <li><b>Oblast:</b> Česko a okolí zhruba do 100 km za hranicemi, mřížka 100 × 100 m. Trasa se hledá algoritmem A* přes buňky, každá buňka má „cenu“ podle filtrů.</li>
+          <li><b>Budovy:</b> 50 milionů budov z OpenStreetMap (Overture Maps, 11/2026). Penalizace roste, čím blíž k nejbližší budově jdete. Zahrnuje i samoty, chaty a posedy, pokud jsou zmapované.</li>
+          <li><b>Silnice a cesty:</b> OpenStreetMap ve všech třídách včetně lesních cest a pěšin. Přechod silnice stojí jednorázovou přirážku. Pod mosty a nad tunely se dá projít, mosty přes vodu slouží k přechodu řek.</li>
+          <li><b>Krajina:</b> CORINE Land Cover 2018. Malé paseky, remízky a potoky (pod 25 ha a 100 m) v datech nejsou.</li>
+          <li><b>Co plánovač nezná:</b> převýšení a sklon terénu, ploty, obory, vojenské újezdy, soukromé pozemky ani aktuální stav cest. Před cestou trasu projděte na podrobné turistické mapě.</li>
+        </ul>
+      </details>
+    </div>
