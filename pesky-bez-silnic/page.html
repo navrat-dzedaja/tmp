@@ -1,0 +1,461 @@
+<title>Pěšky bez silnic</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/*LEAFLETCSS*/
+</style>
+<style>
+/* Layout: full-height map app, control panel on the left (stacks under the map on phones). */
+:root{
+  --bg:#f3f5f1; --panel:#fbfcfa; --fg:#18201b; --muted:#5a665e; --line:#dce2da; --soft:#eaeee7;
+  --blaze:#d3212b; --blaze-ink:#ffffff; --focus:#2f6fb5;
+  --display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101412; --panel:#151a17; --fg:#e4eae5; --muted:#97a39b; --line:#29312c; --soft:#1d2420;
+  --blaze:#ef4a4f; --blaze-ink:#f4f4f4; --focus:#79a8e6; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#101412; --panel:#151a17; --fg:#e4eae5; --muted:#97a39b; --line:#29312c; --soft:#1d2420;
+  --blaze:#ef4a4f; --blaze-ink:#f4f4f4; --focus:#79a8e6; color-scheme:dark }
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
+.app{display:grid;grid-template-columns:minmax(330px,400px) 1fr;height:100%}
+.panel{overflow-y:auto;background:var(--panel);border-right:1px solid var(--line);
+  padding-block:22px 28px;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:18px;
+  display:flex;flex-direction:column;gap:22px;min-width:0}
+.mapwrap{position:relative;min-width:0;min-height:0}
+#map{position:absolute;inset:0;background:var(--bg)}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr;grid-template-rows:62vh auto;height:auto}
+  .mapwrap{order:-1;height:62vh}
+  .panel{overflow:visible;border-right:0;border-top:1px solid var(--line);
+    padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+}
+h1{font:800 34px/1.02 var(--display);font-stretch:82%;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h2{font:700 13px/1.2 var(--display);font-stretch:100%;letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
+p{margin:0}
+.eyebrow{display:flex;align-items:center;gap:8px;font:600 12px/1 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.lede{color:var(--fg);max-width:62ch;margin-top:10px}
+.blaze{display:inline-block;width:22px;height:12px;border-radius:2px;flex:none;
+  background:linear-gradient(var(--blaze-ink) 0 30%,var(--c,var(--blaze)) 30% 70%,var(--blaze-ink) 70%);
+  box-shadow:0 0 0 1px var(--line)}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.seg button{all:unset;cursor:pointer;border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:9px 10px;
+  display:flex;flex-direction:column;gap:3px;min-width:0}
+.seg button b{font:700 15px/1.1 var(--display);font-stretch:88%}
+.seg button span{font-size:11.5px;line-height:1.3;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--panel);border-color:var(--fg)}
+.seg button[aria-pressed="true"] span{color:inherit;opacity:.8}
+.seg button:focus-visible,.tog button:focus-visible,.list button:focus-visible,.link:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.vdesc{font-size:13px;color:var(--muted);margin-top:8px;min-height:3.9em}
+.tog{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.tog button{all:unset;cursor:pointer;font-size:13px;border:1px solid var(--line);border-radius:999px;padding:5px 11px;background:transparent}
+.tog button[aria-pressed="true"]{background:var(--soft);border-color:var(--fg)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat b{font:800 24px/1 var(--display);font-stretch:85%;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted);line-height:1.3}
+.story{border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--soft);display:flex;flex-direction:column;gap:10px}
+.story h3{font:800 20px/1.1 var(--display);font-stretch:85%;margin:0;display:flex;align-items:center;gap:10px}
+.story p{font-size:14px}
+.story .num{font-weight:600;font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.link{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--fg);border-bottom:1.5px solid var(--blaze);padding-bottom:1px}
+.listhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.listhead h2{margin:0}
+select{font:13px var(--body);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 6px;max-width:55%}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.list button{all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;
+  padding:8px 6px;border-top:1px solid var(--line)}
+.list li:first-child button{border-top:0}
+.list button:hover{background:var(--soft)}
+.list button[aria-current="true"]{background:var(--soft);box-shadow:inset 3px 0 0 var(--blaze)}
+.sw{width:22px;height:22px;border-radius:5px}
+.nm{min-width:0}
+.nm b{display:block;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm span{font-size:12px;color:var(--muted)}
+.fig{text-align:right;font-variant-numeric:tabular-nums;font-size:13px;line-height:1.25}
+.fig span{display:block;color:var(--muted);font-size:12px}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:13px}
+.legend div{display:flex;align-items:center;gap:8px;min-width:0}
+.legend i{width:14px;height:14px;border-radius:3px;flex:none;box-shadow:0 0 0 1px var(--line)}
+.ramp{display:flex;height:10px;border-radius:3px;overflow:hidden;margin:6px 0 2px}
+.ramp i{flex:1}
+.rampl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+details{border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;font:700 13px/1.2 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+details p, details li{font-size:13px;color:var(--fg);max-width:65ch}
+details ul{padding-left:18px;margin:10px 0 0;display:flex;flex-direction:column;gap:6px}
+.readout{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:500;
+  max-width:min(340px,calc(100% - 20px));background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;font-size:12.5px;line-height:1.4;box-shadow:0 2px 10px rgba(0,0,0,.12);pointer-events:none}
+.readout b{font-weight:600}
+.readout .k{color:var(--muted)}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:14px;z-index:400;pointer-events:none}
+.leaflet-container{font:12px var(--body);background:var(--bg)}
+.leaflet-tile{image-rendering:pixelated}
+.leaflet-control-zoom a{background:var(--panel)!important;color:var(--fg)!important;border-color:var(--line)!important}
+.leaflet-bar{border:1px solid var(--line)!important;box-shadow:none!important}
+.leaflet-top.leaflet-right{top:env(safe-area-inset-top,0px);right:env(safe-area-inset-right,0px)}
+.leaflet-control-attribution{background:color-mix(in srgb,var(--panel) 85%,transparent)!important;color:var(--muted)!important;font-size:10.5px}
+.leaflet-control-attribution a{color:var(--muted)!important}
+.city{font:600 11.5px/1 var(--body);color:var(--fg);white-space:nowrap;text-shadow:0 0 3px var(--panel),0 0 3px var(--panel),0 0 2px var(--panel)}
+.city.t0,.city.t1{font:700 12.5px/1 var(--display);font-stretch:90%;letter-spacing:.02em}
+.city::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--fg);margin-right:4px;vertical-align:1px;box-shadow:0 0 0 1.5px var(--panel)}
+.pin{font:700 11px/1 var(--body);background:var(--blaze);color:#fff;border:2px solid #fff;border-radius:999px;padding:3px 7px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.leaflet-tooltip{font:12px var(--body);background:var(--panel);color:var(--fg);border:1px solid var(--line)}
+@media (prefers-reduced-motion: reduce){.leaflet-zoom-anim .leaflet-zoom-animated{transition:none!important}}
+</style>
+
+<div class="app">
+  <aside class="panel" aria-label="Ovládání mapy">
+    <header>
+      <div class="eyebrow"><span class="blaze" aria-hidden="true"></span>Evropa · mřížka 200 m</div>
+      <h1>Pěšky bez silnic</h1>
+      <p class="lede">Kudy se v Evropě dá jít jen lesem, loukou, mokřadem nebo po skalách, aniž byste vkročili na pole, do zástavby nebo na silnici? Každá barevná plocha je jeden souvislý celek. Uvnitř něj projdete odkudkoli kamkoli. Čára ukazuje nejdelší trasu, kterou celek nabízí.</p>
+    </header>
+
+    <section aria-labelledby="h-var">
+      <h2 id="h-var">Co je překážka</h2>
+      <div class="seg" role="group" aria-label="Varianta">
+        <button type="button" id="v-v1" data-v="v1"><b>Velké silnice</b><span>dálnice a I. třída</span></button>
+        <button type="button" id="v-v2" data-v="v2"><b>+ II. třída</b><span>výchozí</span></button>
+        <button type="button" id="v-v3" data-v="v3"><b>Divočina</b><span>jen příroda</span></button>
+      </div>
+      <p class="vdesc" id="vdesc"></p>
+      <div class="tog" role="group" aria-label="Zobrazení">
+        <button type="button" id="m-comp" aria-pressed="true">Barvy podle celků</button>
+        <button type="button" id="m-type" aria-pressed="false">Typ krajiny</button>
+        <button type="button" id="t-trails" aria-pressed="true">Nejdelší trasy</button>
+        <button type="button" id="t-roads" aria-pressed="true">Silnice při přiblížení</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-stats">
+      <h2 id="h-stats">Evropa v této variantě</h2>
+      <div class="stats">
+        <div class="stat"><b id="s-big">–</b><span>celků nad 1 000 km²</span></div>
+        <div class="stat"><b id="s-max">–</b><span>km² má největší celek</span></div>
+        <div class="stat"><b id="s-trail">–</b><span>km měří nejdelší trasa</span></div>
+      </div>
+    </section>
+
+    <section class="story" aria-labelledby="h-story">
+      <h3 id="h-story"><span class="blaze" aria-hidden="true"></span>Ze Šumavy do Atén?</h3>
+      <p>Mapa Josepa Ferrera ukázala, že neobydlenými čtverci se dá ze Šumavy dojít až do Řecka. Když ale za překážku vezmeme i silnice a pole, cesta skončí mnohem dřív.</p>
+      <p id="story-text"></p>
+      <div class="row">
+        <button type="button" class="link" id="go-far">Nejdelší trasa z Modravy</button>
+        <button type="button" class="link" id="go-ath">Směr Atény</button>
+        <button type="button" class="link" id="go-cz">Celky v Česku</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="listhead">
+        <h2 id="h-list">Největší celky</h2>
+        <select id="cntr" aria-label="Filtrovat podle státu"></select>
+      </div>
+      <ol class="list" id="list" aria-labelledby="h-list"></ol>
+    </section>
+
+    <section aria-labelledby="h-leg">
+      <h2 id="h-leg">Legenda</h2>
+      <div id="legend"></div>
+    </section>
+
+    <details>
+      <summary>Jak mapa vznikla</summary>
+      <ul>
+        <li><b>Krajina:</b> CORINE Land Cover 2018 (EEA, Copernicus), rozlišení 100 m. Jako příroda se počítají lesy, přirozené trávníky, vřesoviště, křoviny, skály, písky, ledovce, řídká vegetace, mokřady a rašeliniště. Louky a pastviny jsou průchozí ve dvou mírnějších variantách.</li>
+        <li><b>Překážky:</b> pole, sady, vinice, zástavba, průmysl, doly, skládky, sportoviště a silnice. Řeky a jezera širší než 100 m také, protože se nedají přejít pěšky. Menší potoky v datech nejsou a průchod neblokují.</li>
+        <li><b>Silnice a železnice:</b> OpenStreetMap přes Overture Maps (vydání 2026-11-18). Úseky v tunelech a na mostech se nepočítají, pod mostem nebo nad tunelem se projít dá. Lesní a místní cesty překážkou nejsou.</li>
+        <li><b>Mřížka 200 m:</b> buňka je přírodní, pokud je přírodní aspoň polovina její plochy. Silnice zabere každou buňku, kterou protne. Celky se spojují jen přes stranu buňky, nikdy přes roh.</li>
+        <li><b>Nejdelší trasa:</b> přibližný „průměr“ celku. Dvakrát hledám nejvzdálenější bod po mřížce s úhlopříčnými kroky. Délka se měří po trase, ne vzdušnou čarou.</li>
+        <li><b>Omezení:</b> CORINE zachycuje plochy od 25 ha, takže malá pole nebo samoty v lese chybí. Data o silnicích nejsou všude stejně úplná. Ukrajina, Bělorusko, Moldavsko a Rusko leží mimo pokrytí CORINE.</li>
+      </ul>
+    </details>
+  </aside>
+
+  <main class="mapwrap">
+    <div id="map" role="application" aria-label="Mapa souvislých přírodních celků v Evropě"></div>
+    <div class="loading" id="loading">Načítám mapu…</div>
+    <div class="readout" id="readout" hidden></div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(async function(){
+const CN={AD:'Andorra',AL:'Albánie',AT:'Rakousko',BA:'Bosna a Hercegovina',BE:'Belgie',BG:'Bulharsko',BY:'Bělorusko',CH:'Švýcarsko',CY:'Kypr',CZ:'Česko',DE:'Německo',DK:'Dánsko',EE:'Estonsko',EL:'Řecko',ES:'Španělsko',FI:'Finsko',FR:'Francie',GE:'Gruzie',HR:'Chorvatsko',HU:'Maďarsko',IE:'Irsko',IM:'Ostrov Man',IQ:'Irák',IR:'Írán',IS:'Island',IT:'Itálie',LI:'Lichtenštejnsko',LT:'Litva',LU:'Lucembursko',LV:'Lotyšsko',MD:'Moldavsko',ME:'Černá Hora',MK:'Severní Makedonie',NL:'Nizozemsko',NO:'Norsko',PL:'Polsko',PT:'Portugalsko',RO:'Rumunsko',RS:'Srbsko',RU:'Rusko',SE:'Švédsko',SI:'Slovinsko',SK:'Slovensko',SY:'Sýrie',TR:'Turecko',UA:'Ukrajina',UK:'Spojené království',XK:'Kosovo',MT:'Malta'};
+const VDESC={
+  v1:'Překážkou jsou dálnice, rychlostní silnice a silnice I. třídy. Silnice II. a III. třídy lze přejít. Louky a pastviny jsou průchozí.',
+  v2:'Překážkou jsou navíc silnice II. třídy. Přejít jde jen silnice III. třídy, místní a lesní cesty. Louky a pastviny jsou průchozí.',
+  v3:'Jen les a přirozená vegetace. Překážkou jsou i silnice III. třídy, železnice a obhospodařované louky a pastviny.'};
+const ROADBITS={v1:16,v2:16|32,v3:16|32|64|128};
+const VIDX={v1:0,v2:1,v3:2};
+const fmt=n=>Math.round(n).toLocaleString('cs-CZ');
+const nameOf=c=>c.cntr.slice(0,2).map(([k])=>CN[k]||k).join(', ');
+
+const PALS={
+ light:{sea:'#dde6ea',nodata:'#e8e7e2',water:'#9cc0d6',fields:'#f1ead5',meadow:'#e3e1bd',built:'#b9b3ad',
+   natRest:'#d6e0cf',road:'#454a46',sz:['#cbd9c2','#adc6a2','#8db082','#6c9663'],
+   comp:['#2b8a78','#6a5acd','#d49a1f','#2f6fb5','#8c4fa6','#c26d3a','#9a6a3a','#3aa0b8','#5f6f8f','#b5739d'],
+   type:{forest:'#3f7a45',veg:'#9cbf6a',rock:'#bab2a3',wet:'#5b9aa0',meadow:'#cbd37a'},
+   ink:'#18201b',halo:'#ffffff',dim:.28},
+ dark:{sea:'#121a1f',nodata:'#1b1d20',water:'#27465a',fields:'#29271f',meadow:'#2f2f22',built:'#4c4844',
+   natRest:'#202a23',road:'#b9c0bb',sz:['#243629','#2c4531','#36573c','#426a48'],
+   comp:['#3fb39c','#8f80e6','#e2b04a','#4f8fd6','#b276c9','#e08a55','#c08a55','#5cc0d6','#8394b5','#d595bf'],
+   type:{forest:'#4f8f55',veg:'#8fae5f',rock:'#7a746a',wet:'#4c8389',meadow:'#a1a65c'},
+   ink:'#eef2ee',halo:'#101412',dim:.22}
+};
+const isDark=()=>{const t=document.documentElement.dataset.theme; if(t==='dark')return true; if(t==='light')return false; return matchMedia('(prefers-color-scheme: dark)').matches;};
+const hex=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+const pack=([r,g,b])=>((255<<24)|(b<<16)|(g<<8)|r)>>>0;
+const mix=(a,b,t)=>a.map((v,i)=>Math.round(v*(1-t)+b[i]*t));
+
+let DATA;
+try{ DATA=await fetch('data.json').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}); }
+catch(e){ document.getElementById('loading').textContent='Data mapy se nepodařilo načíst. Zkuste stránku obnovit.'; return; }
+document.getElementById('loading').hidden=true;
+const G=DATA.grid;
+
+const state={v:'v2',mode:'comp',trails:true,roads:true,sel:null,country:''};
+try{const s=JSON.parse(localStorage.getItem('pbs-state')||'{}'); if(s.v in VIDX)state.v=s.v; if(s.mode)state.mode=s.mode;}catch(e){}
+const save=()=>{try{localStorage.setItem('pbs-state',JSON.stringify({v:state.v,mode:state.mode}))}catch(e){}};
+
+// ---------- colour lookup tables
+let P,LUT;
+function binArea(v,rank){const e=DATA.variants[v].edges;const b=rank-201;return Math.sqrt(e[b]*e[b+1]);}
+function sizeIdx(a){return a>=1000?3:a>=100?2:a>=10?1:0;}
+function buildLUT(){
+  P=isDark()?PALS.dark:PALS.light;
+  const base=new Uint32Array(16),type=new Uint32Array(16);
+  const bh=[P.sea,P.water,P.natRest,P.natRest,P.natRest,P.natRest,P.meadow,P.fields,P.built,P.nodata];
+  for(let i=0;i<16;i++) base[i]=pack(hex(bh[i]||P.sea));
+  const th=[P.sea,P.water,P.type.forest,P.type.veg,P.type.rock,P.type.wet,P.type.meadow,P.sz[2],P.sz[2],P.sz[2]];
+  for(let i=0;i<16;i++) type[i]=pack(hex(th[i]||P.sz[2]));
+  const rank={};
+  for(const v of ['v1','v2','v3']){
+    const L=new Uint32Array(256), comps=DATA.variants[v].comps;
+    const bg=hex(P.fields);
+    for(let r=1;r<256;r++){
+      let c;
+      if(r<=comps.length) c=hex(P.comp[comps[r-1].col]);
+      else if(r>=201) c=hex(P.sz[sizeIdx(binArea(v,r))]);
+      else c=hex(P.sz[0]);
+      if(state.sel && state.sel.v===v && state.sel.r!==r) c=mix(c,bg,1-P.dim);
+      L[r]=pack(c);
+    }
+    rank[v]=L;
+  }
+  LUT={base,type,rank,road:pack(hex(P.road))};
+}
+buildLUT();
+
+// ---------- map
+const map=L.map('map',{crs:L.CRS.Simple,minZoom:-2,maxZoom:7,zoomSnap:.5,zoomDelta:.5,wheelPxPerZoomLevel:90,attributionControl:true,zoomControl:false,preferCanvas:true});
+L.control.zoom({position:'topright'}).addTo(map);
+map.attributionControl.setPrefix(false).addAttribution('Krajina: CORINE Land Cover 2018 (EEA, Copernicus) · Silnice: © přispěvatelé <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>, Overture Maps · Hranice: © EuroGeographics · Města: Natural Earth');
+const toLL=(x,y)=>L.latLng(-y/16,x/16);
+const pts=a=>{const o=[];for(let i=0;i<a.length;i+=2)o.push(toLL(a[i],a[i+1]));return o;};
+const imgBounds=L.latLngBounds(toLL(0,G.h),toLL(G.w,0));
+const land=L.latLngBounds(toLL(336,10944),toLL(12032,976));
+map.setMaxBounds(imgBounds.pad(.15));
+map.fitBounds(land,{animate:false});
+
+const cache=new Map();
+function loadImg(src){return new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=src;});}
+const scratch=document.createElement('canvas');scratch.width=scratch.height=G.tile;
+const sctx=scratch.getContext('2d',{willReadFrequently:true});
+function readAll(img){if(!img)return null;sctx.clearRect(0,0,G.tile,G.tile);sctx.drawImage(img,0,0);return sctx.getImageData(0,0,G.tile,G.tile).data;}
+const Tiles=L.GridLayer.extend({
+  createTile(co,done){
+    const c=document.createElement('canvas');c.width=c.height=G.tile;
+    const key=`${co.z}/${co.x}_${co.y}`;
+    Promise.all([loadImg(`t/${key}.png`),loadImg(`b/${key}.png`)]).then(([ti,bi])=>{
+      cache.set(key,{ti,bi});
+      try{paint(c,ti,bi,co.z);}catch(e){}
+      done(null,c);
+    });
+    return c;
+  }
+});
+function paint(c,ti,bi,z){
+  const N=G.tile*G.tile, ctx=c.getContext('2d');
+  const out=ctx.createImageData(G.tile,G.tile), o=new Uint32Array(out.data.buffer);
+  const R=readAll(ti), B=readAll(bi);
+  const ch=VIDX[state.v], rl=LUT.rank[state.v], bl=LUT.base, tl=LUT.type;
+  const typeMode=state.mode==='type';
+  const rb=(state.roads && z>=4)?ROADBITS[state.v]:0, road=LUT.road;
+  const sea=bl[0];
+  for(let i=0,p=0;i<N;i++,p+=4){
+    const r=R?R[p+ch]:0, b=B?B[p]:0;
+    let col;
+    if(r) col=typeMode?tl[b&15]:rl[r];
+    else col=B?bl[b&15]:sea;
+    if(rb && (b&rb)) col=road;
+    o[i]=col;
+  }
+  ctx.putImageData(out,0,0);
+}
+const tiles=new Tiles({tileSize:G.tile,minNativeZoom:0,maxNativeZoom:G.maxNative,bounds:imgBounds,noWrap:true,keepBuffer:1,updateWhenZooming:false,minZoom:-2,maxZoom:7}).addTo(map);
+
+// borders & cities
+const bord=L.layerGroup().addTo(map);
+for(const l of DATA.borders) L.polyline(pts(l),{color:'#6d746f',weight:1,opacity:.75,dashArray:'4 3',interactive:false}).addTo(bord);
+const cg=[L.layerGroup().addTo(map),L.layerGroup(),L.layerGroup()];
+for(const [n,x,y,t] of DATA.cities){
+  L.marker(toLL(x,y),{interactive:false,keyboard:false,icon:L.divIcon({className:'',html:`<span class="city t${t}">${n}</span>`,iconSize:null,iconAnchor:[3,6]})}).addTo(cg[t]);
+}
+function cityVis(){const z=map.getZoom();[[1,.5],[2,2]].forEach(([i,mz])=>{const on=z>=mz;if(on&&!map.hasLayer(cg[i]))cg[i].addTo(map);else if(!on&&map.hasLayer(cg[i]))map.removeLayer(cg[i]);});}
+map.on('zoomend',cityVis);cityVis();
+
+// trails
+const trailLayer=L.layerGroup().addTo(map), hiLayer=L.layerGroup().addTo(map);
+function blazeLine(latlngs,group,opts={}){
+  const w=opts.w||4;
+  L.polyline(latlngs,{color:'#ffffff',weight:w+4,opacity:1,lineCap:'round',lineJoin:'round',interactive:false}).addTo(group);
+  return L.polyline(latlngs,{color:opts.color||getComputedStyle(document.documentElement).getPropertyValue('--blaze').trim()||'#d3212b',weight:w,opacity:1,lineCap:'round',lineJoin:'round',dashArray:opts.dash||null,interactive:!!opts.tip}).addTo(group);
+}
+function drawTrails(){
+  trailLayer.clearLayers();
+  if(!state.trails) return;
+  const comps=DATA.variants[state.v].comps;
+  for(const c of comps.slice(0,80)){
+    if(!c.trail||c.trail.length<4) continue;
+    const ll=pts(c.trail);
+    L.polyline(ll,{color:P.halo,weight:3.5,opacity:.9,interactive:false}).addTo(trailLayer);
+    const pl=L.polyline(ll,{color:P.ink,weight:1.6,opacity:.95}).addTo(trailLayer);
+    pl.bindTooltip(`Nejdelší trasa: <b>${fmt(c.trail_km)} km</b> · ${nameOf(c)}`,{sticky:true});
+    pl.on('click',()=>select(c.r,true));
+  }
+}
+
+// ---------- UI
+const $=id=>document.getElementById(id);
+function setVariantButtons(){for(const v of ['v1','v2','v3'])$('v-'+v).setAttribute('aria-pressed',String(state.v===v));$('vdesc').textContent=VDESC[state.v];}
+function stats(){
+  const d=DATA.variants[state.v];
+  $('s-big').textContent=fmt(d.sizes.gt1000);
+  $('s-max').textContent=fmt(d.comps[0].km2);
+  $('s-trail').textContent=fmt(Math.max(...d.comps.map(c=>c.trail_km)));
+  const r=d.routes, s=r.seed;
+  $('story-text').innerHTML=`Z Modravy dojdete nejdál <span class="num">${fmt(r.farthest.km)} km</span>. Šumavský celek má <span class="num">${fmt(s.km2)} km²</span> (${s.cntr.map(([k,p])=>`${CN[k]||k} ${Math.round(p)} %`).join(', ')}). Směrem k Aténám se zastavíte po <span class="num">${fmt(r.athens.km)} km</span>, ještě <span class="num">${fmt(r.athens.gap_km)} km</span> vzdušnou čarou před cílem.`;
+}
+function countries(){
+  const d=DATA.variants[state.v], cnt={};
+  for(const c of d.comps) for(const [k,p] of c.cntr) if(p>=10) cnt[k]=(cnt[k]||0)+1;
+  const ks=Object.keys(cnt).filter(k=>CN[k]).sort((a,b)=>CN[a].localeCompare(CN[b],'cs'));
+  const sel=$('cntr'); const cur=state.country;
+  sel.innerHTML='<option value="">Celá Evropa</option>'+ks.map(k=>`<option value="${k}">${CN[k]}</option>`).join('');
+  sel.value=ks.includes(cur)?cur:'';state.country=sel.value;
+}
+function list(){
+  const d=DATA.variants[state.v];
+  let cs=d.comps;
+  if(state.country) cs=cs.filter(c=>c.cntr.some(([k,p])=>k===state.country&&p>=10));
+  cs=cs.slice(0,12);
+  $('h-list').textContent=state.country?`Největší celky · ${CN[state.country]}`:'Největší celky';
+  $('list').innerHTML=cs.map(c=>`<li><button type="button" data-r="${c.r}" aria-current="${state.sel&&state.sel.v===state.v&&state.sel.r===c.r}">
+    <i class="sw" style="background:${P.comp[c.col]}"></i>
+    <span class="nm"><b>${nameOf(c)}</b><span>okolí: ${c.near}</span></span>
+    <span class="fig">${fmt(c.km2)} km²<span>trasa ${fmt(c.trail_km)} km</span></span></button></li>`).join('');
+}
+function legend(){
+  const sw=(c,t)=>`<div><i style="background:${c}"></i>${t}</div>`;
+  let h='';
+  if(state.mode==='comp'){
+    h+=`<div class="legend">${sw(P.comp[0],'Velký celek (každý má svou barvu)')}${sw(P.fields,'Pole, sady, vinice')}${sw(P.built,'Zástavba, průmysl, doly')}${sw(P.water,'Řeky a jezera')}${state.v==='v3'?sw(P.meadow,'Louky a pastviny'):''}${sw(P.nodata,'Mimo data CORINE')}</div>`;
+    h+=`<p style="font-size:12px;color:var(--muted);margin:12px 0 0">Menší celky podle rozlohy</p><div class="ramp">${P.sz.map(c=>`<i style="background:${c}"></i>`).join('')}</div><div class="rampl"><span>&lt; 10 km²</span><span>10–100</span><span>100–1 000</span><span>&gt; 1 000</span></div>`;
+  } else {
+    h+=`<div class="legend">${sw(P.type.forest,'Les')}${sw(P.type.veg,'Trávníky, vřesoviště, křoviny')}${sw(P.type.rock,'Skály, písky, ledovce')}${sw(P.type.wet,'Mokřady a rašeliniště')}${state.v!=='v3'?sw(P.type.meadow,'Louky a pastviny'):sw(P.meadow,'Louky a pastviny (překážka)')}${sw(P.fields,'Pole, sady, vinice')}${sw(P.built,'Zástavba, průmysl')}${sw(P.water,'Řeky a jezera')}</div>`;
+  }
+  h+=`<div class="legend" style="margin-top:12px"><div><svg width="22" height="10" aria-hidden="true"><line x1="1" y1="5" x2="21" y2="5" stroke="${P.halo}" stroke-width="4"/><line x1="1" y1="5" x2="21" y2="5" stroke="${P.ink}" stroke-width="1.6"/></svg>Nejdelší trasa celku</div><div><span class="blaze" aria-hidden="true"></span>Vybraná trasa</div><div><i style="background:${P.road}"></i>Silnice (od přiblížení)</div><div><svg width="22" height="10" aria-hidden="true"><line x1="1" y1="5" x2="21" y2="5" stroke="#6d746f" stroke-width="1" stroke-dasharray="4 3"/></svg>Státní hranice</div></div>`;
+  $('legend').innerHTML=h;
+}
+function refresh(redraw=true){
+  setVariantButtons();stats();countries();list();legend();drawTrails();
+  $('m-comp').setAttribute('aria-pressed',String(state.mode==='comp'));$('m-type').setAttribute('aria-pressed',String(state.mode==='type'));
+  $('t-trails').setAttribute('aria-pressed',String(state.trails));$('t-roads').setAttribute('aria-pressed',String(state.roads));
+  if(redraw) tiles.redraw();
+  if(lastEv) setTimeout(showReadout,400);
+}
+function compBounds(c){const b=c.bbox;return L.latLngBounds(toLL(b[0],b[3]),toLL(b[2],b[1]));}
+function select(r,fly){
+  const d=DATA.variants[state.v]; const c=d.comps[r-1]; if(!c) return;
+  state.sel={v:state.v,r};
+  hiLayer.clearLayers();
+  if(c.trail&&c.trail.length>=4){
+    const ll=pts(c.trail);
+    blazeLine(ll,hiLayer,{w:4});
+    L.marker(ll[0],{interactive:false,icon:L.divIcon({className:'',html:`<span class="pin">${fmt(c.trail_km)} km</span>`,iconSize:null,iconAnchor:[0,-6]})}).addTo(hiLayer);
+  }
+  buildLUT();list();tiles.redraw();
+  if(fly) map.flyToBounds(compBounds(c),{padding:[30,30],duration:.8,maxZoom:5});
+}
+function clearSel(){if(!state.sel)return;state.sel=null;hiLayer.clearLayers();buildLUT();list();tiles.redraw();}
+function route(name){
+  const r=DATA.variants[state.v].routes; const t=r[name]; if(!t) return;
+  clearSel();
+  const ll=pts(t.trail);
+  blazeLine(ll,hiLayer,{w:4});
+  L.marker(toLL(r.seed.pt[0],r.seed.pt[1]),{interactive:false,icon:L.divIcon({className:'',html:'<span class="pin">Modrava</span>',iconSize:null,iconAnchor:[0,24]})}).addTo(hiLayer);
+  L.marker(ll[0],{interactive:false,icon:L.divIcon({className:'',html:`<span class="pin">${fmt(t.km)} km</span>`,iconSize:null,iconAnchor:[0,-6]})}).addTo(hiLayer);
+  const b=L.latLngBounds(ll);
+  if(name==='athens'){ const a=toLL(...[DATA.variants[state.v].routes.athens.end[0],DATA.variants[state.v].routes.athens.end[1]]); b.extend(a); }
+  map.flyToBounds(b.pad(.6),{duration:.8,maxZoom:5.5});
+}
+for(const v of ['v1','v2','v3']) $('v-'+v).onclick=()=>{state.v=v;state.sel=null;hiLayer.clearLayers();buildLUT();save();refresh();};
+$('m-comp').onclick=()=>{state.mode='comp';save();refresh();};
+$('m-type').onclick=()=>{state.mode='type';save();refresh();};
+$('t-trails').onclick=()=>{state.trails=!state.trails;refresh(false);};
+$('t-roads').onclick=()=>{state.roads=!state.roads;refresh(Math.round(map.getZoom())>=4);};
+$('cntr').onchange=e=>{state.country=e.target.value;list();};
+$('list').onclick=e=>{const b=e.target.closest('button[data-r]');if(b)select(+b.dataset.r,true);};
+$('go-far').onclick=()=>route('farthest');
+$('go-ath').onclick=()=>route('athens');
+$('go-cz').onclick=()=>{state.country='CZ';$('cntr').value='CZ';if($('cntr').value!=='CZ'){state.country='';}list();map.flyToBounds(L.latLngBounds(toLL(4919,7443),toLL(6184,6656)),{duration:.8});$('list').scrollIntoView({behavior:'smooth',block:'nearest'});};
+
+// ---------- hover readout
+const px1=document.createElement('canvas');px1.width=px1.height=1;const p1=px1.getContext('2d',{willReadFrequently:true});
+function readPx(img,x,y){if(!img)return null;p1.clearRect(0,0,1,1);p1.drawImage(img,x,y,1,1,0,0,1,1);return p1.getImageData(0,0,1,1).data;}
+const TYPE=['Moře','Řeka nebo jezero','Les','Trávníky, vřesoviště, křoviny','Skály, písky, ledovce','Mokřad','Louka nebo pastvina','Pole, sad, vinice','Zástavba, průmysl, doly','Mimo data CORINE'];
+function probe(ll){
+  const p4=map.project(ll,4); if(p4.x<0||p4.y<0||p4.x>=G.w||p4.y>=G.h) return null;
+  for(let z=Math.max(0,Math.min(4,Math.round(map.getZoom())));z>=0;z--){
+    const s=2**(4-z), x=p4.x/s, y=p4.y/s, tx=Math.floor(x/G.tile), ty=Math.floor(y/G.tile);
+    const e=cache.get(`${z}/${tx}_${ty}`); if(!e) continue;
+    const ix=Math.floor(x-tx*G.tile), iy=Math.floor(y-ty*G.tile);
+    const r=readPx(e.ti,ix,iy), b=readPx(e.bi,ix,iy);
+    return {rank:r?r[VIDX[state.v]]:0, base:b?b[0]:0};
+  }
+  return null;
+}
+const ro=$('readout'); let raf=0, lastEv=null;
+function showReadout(){
+  raf=0; if(!lastEv) return;
+  const q=probe(lastEv.latlng); if(!q){ro.hidden=true;return;}
+  const d=DATA.variants[state.v], t=TYPE[q.base&15]||'';
+  let h=`<b>${t}</b>`;
+  if(q.rank>=1 && q.rank<=d.comps.length){const c=d.comps[q.rank-1];h+=`<br><span class="k">Celek:</span> ${nameOf(c)} · ${fmt(c.km2)} km²<br><span class="k">Nejdelší trasa:</span> ${fmt(c.trail_km)} km`;}
+  else if(q.rank>=201){const a=binArea(state.v,q.rank);h+=`<br><span class="k">Menší celek:</span> asi ${a>=10?fmt(a):a.toFixed(1).replace('.',',')} km²`;}
+  else if(q.rank===0 && (q.base&15)>=2 && (q.base&15)<=6) h+=`<br><span class="k">Mimo souvislý celek</span>`;
+  const rb=ROADBITS[state.v]&q.base; if(rb && Math.round(map.getZoom())>=4) h+=`<br><span class="k">V buňce vede silnice nebo železnice</span>`;
+  ro.innerHTML=h; ro.hidden=false;
+}
+map.on('mousemove',e=>{lastEv=e;if(!raf)raf=requestAnimationFrame(showReadout);});
+map.on('mouseout',()=>{lastEv=null;ro.hidden=true;});
+map.on('click',e=>{const q=probe(e.latlng); lastEv=e; showReadout(); if(q&&q.rank>=1&&q.rank<=DATA.variants[state.v].comps.length) select(q.rank,false); else clearSel();});
+
+// theme changes
+const reTheme=()=>{buildLUT();refresh();};
+new MutationObserver(reTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',reTheme);
+
+refresh(false);
+})();
+</script>
