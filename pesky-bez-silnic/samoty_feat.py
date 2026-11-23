@@ -24,6 +24,15 @@ lcg=np.zeros(64,np.uint8)  # 1 forest 2 meadow/grass 3 field 4 water 5 other nat
 for cd,i in idx.items():
     lcg[i]=1 if cd in (311,312,313,324) else 2 if cd in (231,321,322,333) else 3 if 200<cd<300 else 4 if cd>=500 else 6 if cd<200 else 5
 lcmap=lcg[R&63]
+# buildings abroad (Overture/OSM) count as neighbours too: RÚIAN only covers Czechia
+from rasterio.features import rasterize as _rz
+from affine import Affine as _Af
+from scipy import ndimage as _nd
+_cz=shapely.from_wkb(open('dl/cz_3035.wkb','rb').read())
+czmask=_rz([(_cz,1)],out_shape=R.shape,transform=_Af(100,0,X0W,0,-100,YTW),dtype=np.uint8).astype(bool)
+foreign=(bcnt>0)&~czmask
+fdist=_nd.distance_transform_edt(~foreign)*100.0
+del foreign
 # water
 wt=pq.read_table('dl/water_cz.parquet')
 sub=np.array(wt.column('subtype').to_pylist(),object); cls=np.array(wt.column('class').to_pylist(),object)
@@ -77,6 +86,8 @@ for n,cl in enumerate(cand):
     dt,it=tree_town.query([e,nn]); rec['town']=[d['obec'][town_idx[it]],int(dt)]
     dv,iv=tree_vil.query([e,nn]); rec['vil']=[d['cast'][vil_idx[iv]],int(dv)]
     # buildings without address: 300-1000 m annulus
+    fd=float(fdist[r,cc])-70 if (0<=r<R.shape[0] and 0<=cc<R.shape[1]) else 1e9
+    if fd<rec['iso']: rec['iso']=int(max(fd,0)); rec['abroad']=1
     if 10<=r<R.shape[0]-10 and 10<=cc<R.shape[1]-10:
         yy,xx=np.mgrid[-10:11,-10:11]; dd=np.hypot(yy,xx)*100
         win=bcnt[r-10:r+11,cc-10:cc+11]; rec['bld']=int(win[(dd>=300)&(dd<=1000)].sum())

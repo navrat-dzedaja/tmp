@@ -20,6 +20,7 @@
           <button type="button" class="chip" id="p-swap" title="Prohodit start a cíl">⇅ Prohodit</button>
         </div>
         <p class="hint" id="p-hint"></p>
+        <label class="check"><input type="checkbox" id="p-cz" checked> Jen po území Česka</label>
       </section>
 
       <section aria-labelledby="h-prof">
@@ -84,7 +85,7 @@
       <details>
         <summary>Jak plánovač počítá</summary>
         <ul>
-          <li><b>Oblast:</b> Česko a okolí zhruba do 100 km za hranicemi, mřížka 100 × 100 m. Trasa se hledá algoritmem A* přes buňky, každá buňka má „cenu“ podle filtrů.</li>
+          <li><b>Oblast:</b> Česko, mřížka 100 × 100 m. Po vypnutí „Jen po území Česka“ může trasa vést i sousedními státy do 100 km od hranic. Trasa se hledá algoritmem A* přes buňky, každá buňka má „cenu“ podle filtrů.</li>
           <li><b>Budovy:</b> 50 milionů budov z OpenStreetMap (Overture Maps, 11/2026). Penalizace roste, čím blíž k nejbližší budově jdete. Zahrnuje i samoty, chaty a posedy, pokud jsou zmapované.</li>
           <li><b>Silnice a cesty:</b> OpenStreetMap ve všech třídách včetně lesních cest a pěšin. Přechod silnice stojí jednorázovou přirážku. Pod mosty a nad tunely se dá projít, mosty přes vodu slouží k přechodu řek.</li>
           <li><b>Krajina:</b> CORINE Land Cover 2018. Malé paseky, remízky a potoky (pod 25 ha a 100 m) v datech nejsou.</li>

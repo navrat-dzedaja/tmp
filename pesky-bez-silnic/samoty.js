@@ -86,7 +86,7 @@ function select(r,fly){
   $('s-detail').innerHTML=`<h3><span class="blaze" aria-hidden="true"></span>${esc(title(r))}</h3>
     <p class="hint" style="margin:0">${esc(r.adr)} · ${r.n===1?'1 dům':r.n+' domy'}${r.t==='e'?' · rekreační':r.t==='pe'?' · bydlení i rekreace':''}</p>
     <div class="rgrid">
-      <div class="stat"><b>${km(r.iso)}</b><span>k nejbližšímu cizímu domu</span></div>
+      <div class="stat"><b>${km(r.iso)}</b><span>k nejbližšímu cizímu domu${r.abroad?' (za hranicí)':''}</span></div>
       <div class="stat"><b>${r.z!=null?fmt(r.z)+' m':'–'}</b><span>nadmořská výška</span></div>
       <div class="stat"><b>${km(r.vil[1])}</b><span>do vesnice ${esc(r.vil[0])}</span></div>
       <div class="stat"><b>${km(r.town[1])}</b><span>do obce ${esc(r.town[0])} (300+ adres)</span></div>

@@ -151,6 +151,8 @@ details ul{padding-left:18px;margin:10px 0 0;display:flex;flex-direction:column;
 .gpxbtns{align-items:center;margin-bottom:4px}
 .gpx{display:flex;flex-direction:column;gap:6px}
 .gpx h2{margin:0}
+.check{display:flex;align-items:center;gap:8px;font-size:13.5px;margin-top:10px;cursor:pointer}
+.check input{accent-color:var(--blaze);width:16px;height:16px}
 .nm>span{display:block}
 .nm>span.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-width:0}
 .tag{font-size:11px;line-height:1.5;padding:0 7px;border-radius:999px;background:var(--soft);color:var(--fg);border:1px solid var(--line);white-space:nowrap}
@@ -285,7 +287,7 @@ catch(e){ document.getElementById('loading').textContent='Data mapy se nepodaři
 document.getElementById('loading').hidden=true;
 const G=DATA.grid;
 
-const state={v:'v2',mode:'comp',trails:true,roads:true,sel:null,country:''};
+const state={v:'v2',mode:'comp',trails:true,roads:true,sel:null,country:'CZ'};
 try{const s=JSON.parse(localStorage.getItem('pbs-state')||'{}'); if(s.v in VIDX)state.v=s.v; if(s.mode)state.mode=s.mode;}catch(e){}
 const save=()=>{try{localStorage.setItem('pbs-state',JSON.stringify({v:state.v,mode:state.mode}))}catch(e){}};
 
@@ -327,7 +329,7 @@ const pts=a=>{const o=[];for(let i=0;i<a.length;i+=2)o.push(toLL(a[i],a[i+1]));r
 const imgBounds=L.latLngBounds(toLL(0,G.h),toLL(G.w,0));
 const land=L.latLngBounds(toLL(336,10944),toLL(12032,976));
 map.setMaxBounds(imgBounds.pad(.15));
-map.fitBounds(land,{animate:false});
+map.fitBounds(L.latLngBounds(toLL(4919,7443),toLL(6184,6656)).pad(.08),{animate:false});
 
 const cache=new Map();
 function loadImg(src){return new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=src;});}

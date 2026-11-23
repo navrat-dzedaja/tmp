@@ -50,19 +50,18 @@ const PROFILES={
    bR:0,bS:0,bCell:'0',rR:0,track:'use',path:'use',roads:[2,0,0,0,0,0],
    land:{forest:'neut',shrub:'neut',grass:'neut',meadow:'neut',field:'neut',orchard:'neut',wet:'avoid',rock:'neut',water:'avoid',urban:'neut'}}};
 const PLACES=[
- ['Česko',[['Praha',50.0755,14.4378],['Ostrava',49.8209,18.2625],['Brno',49.1951,16.6068],['Plzeň',49.7384,13.3736],['Olomouc',49.5938,17.2509],['Liberec',50.7663,15.0543],['České Budějovice',48.9745,14.4743],['Hradec Králové',50.2092,15.8328],['Ústí nad Labem',50.6607,14.0323],['Pardubice',50.0343,15.7812],['Zlín',49.2265,17.6707],['Jihlava',49.3961,15.5912],['Karlovy Vary',50.2302,12.8711],['Opava',49.9387,17.9026],['Frýdek-Místek',49.6853,18.3484],['Vsetín',49.3387,17.9962],['Šumperk',49.9653,16.9706],['Jeseník',50.2294,17.2046],['Trutnov',50.561,15.9127],['Děčín',50.7822,14.2148],['Cheb',50.0796,12.3739],['Domažlice',49.4405,12.9298],['Prachatice',49.0129,13.9975],['Český Krumlov',48.8127,14.3175],['Tábor',49.4144,14.6578],['Znojmo',48.8555,16.0488]]],
- ['Za hranicemi',[['Vídeň',48.2082,16.3738],['Linec',48.3069,14.2858],['Bratislava',48.1486,17.1077],['Žilina',49.2231,18.7394],['Krakov',50.0647,19.945],['Katovice',50.2649,19.0238],['Vratislav',51.1079,17.0385],['Drážďany',51.0504,13.7373],['Řezno',49.0134,12.1016],['Pasov',48.5665,13.4312],['Mnichov',48.1351,11.582],['Norimberk',49.4521,11.0767],['Salcburk',47.8095,13.055]]]];
+ ['Česko',[['Praha',50.0755,14.4378],['Ostrava',49.8209,18.2625],['Brno',49.1951,16.6068],['Plzeň',49.7384,13.3736],['Olomouc',49.5938,17.2509],['Liberec',50.7663,15.0543],['České Budějovice',48.9745,14.4743],['Hradec Králové',50.2092,15.8328],['Ústí nad Labem',50.6607,14.0323],['Pardubice',50.0343,15.7812],['Zlín',49.2265,17.6707],['Jihlava',49.3961,15.5912],['Karlovy Vary',50.2302,12.8711],['Opava',49.9387,17.9026],['Frýdek-Místek',49.6853,18.3484],['Vsetín',49.3387,17.9962],['Šumperk',49.9653,16.9706],['Jeseník',50.2294,17.2046],['Trutnov',50.561,15.9127],['Děčín',50.7822,14.2148],['Cheb',50.0796,12.3739],['Domažlice',49.4405,12.9298],['Prachatice',49.0129,13.9975],['Český Krumlov',48.8127,14.3175],['Tábor',49.4144,14.6578],['Znojmo',48.8555,16.0488]]]];
 const PL={};
 for(const [,arr] of PLACES) for(const [n,la,lo] of arr){const [x,y]=fromLonLat(lo,la); if(inPlan(x,y)) PL[n]=[x,y,la,lo];}
 
-const S={active:false,from:null,to:null,fromName:'Ostrava',toName:'Praha',pick:null,view:'land',prof:'hidden',route:null};
+const S={czOnly:true,active:false,from:null,to:null,fromName:'Ostrava',toName:'Praha',pick:null,view:'land',prof:'hidden',route:null};
 function applyProfile(k){
   const p=PROFILES[k]; S.prof=k;
   Object.assign(S,{bR:p.bR,bS:p.bS,bCell:p.bCell,rR:p.rR,track:p.track,path:p.path,roads:p.roads.slice(),land:{...p.land}});
 }
 applyProfile('hidden');
-try{const s=JSON.parse(localStorage.getItem('pbs-plan')||'null'); if(s&&s.land){Object.assign(S,{prof:s.prof,bR:s.bR,bS:s.bS,bCell:s.bCell,rR:s.rR,track:s.track,path:s.path,roads:s.roads,land:s.land});}}catch(e){}
-const savePlan=()=>{try{localStorage.setItem('pbs-plan',JSON.stringify({prof:S.prof,bR:S.bR,bS:S.bS,bCell:S.bCell,rR:S.rR,track:S.track,path:S.path,roads:S.roads,land:S.land}))}catch(e){}};
+try{const s=JSON.parse(localStorage.getItem('pbs-plan')||'null'); if(s&&typeof s.czOnly==='boolean') S.czOnly=s.czOnly; if(s&&s.land){Object.assign(S,{prof:s.prof,bR:s.bR,bS:s.bS,bCell:s.bCell,rR:s.rR,track:s.track,path:s.path,roads:s.roads,land:s.land});}}catch(e){}
+const savePlan=()=>{try{localStorage.setItem('pbs-plan',JSON.stringify({czOnly:S.czOnly,prof:S.prof,bR:S.bR,bS:S.bS,bCell:S.bCell,rR:S.rR,track:S.track,path:S.path,roads:S.roads,land:S.land}))}catch(e){}};
 S.from=PL['Ostrava']?PL['Ostrava'].slice(0,2):null; S.to=PL['Praha']?PL['Praha'].slice(0,2):null;
 
 function params(){
@@ -132,13 +131,25 @@ function buildLUT(){
 }
 buildLUT();
 
+// ---------- Czech border (z6 px) for masking and the outline
+let CZ=null;
+function czPath(ctx,ox,oy){ctx.beginPath(); for(const r of CZ.rings){ctx.moveTo(r[0]-ox,r[1]-oy); for(let i=2;i<r.length;i+=2) ctx.lineTo(r[i]-ox,r[i+1]-oy); ctx.closePath();} }
+function czMask(ox,oy,w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d',{willReadFrequently:true});
+  x.fillStyle='#000'; czPath(x,ox,oy); x.fill('evenodd'); const d=x.getImageData(0,0,w,h).data, m=new Uint8Array(w*h); for(let i=0,p=3;i<m.length;i++,p+=4) m[i]=d[p]>127?1:0; return m; }
+function inCZ(x,y){ if(!CZ) return true; let ins=false; for(const r of CZ.rings){ for(let i=0,j=r.length-2;i<r.length;j=i,i+=2){ const xi=r[i],yi=r[i+1],xj=r[j],yj=r[j+1];
+  if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi)) ins=!ins; } } return ins; }
+const czLine=L.layerGroup();
+fetch('cz.json').then(r=>r.ok?r.json():null).then(j=>{ if(!j) return; CZ=j;
+  for(const r of j.rings){const ll=[]; for(let i=0;i<r.length;i+=2) ll.push(ll6(r[i],r[i+1])); L.polygon(ll,{color:'#18201b',weight:2,opacity:.85,fill:false,interactive:false}).addTo(czLine);}
+  planLayer.redraw(); }).catch(()=>{});
+
 // ---------- planner tiles (100 m)
 const imgCache=new Map();
 function loadTile(tx,ty){const k=`${tx}_${ty}`; if(!imgCache.has(k)) imgCache.set(k,PBS.loadImg(`p/${k}.png`)); return imgCache.get(k);}
 const scr=document.createElement('canvas'); scr.width=scr.height=T; const sx=scr.getContext('2d',{willReadFrequently:true});
 function rgbOf(img){sx.clearRect(0,0,T,T); sx.drawImage(img,0,0); const d=sx.getImageData(0,0,T,T).data, N=T*T;
   const R=new Uint8Array(N),G=new Uint8Array(N),B=new Uint8Array(N); for(let i=0,p=0;i<N;i++,p+=4){R[i]=d[p];G[i]=d[p+1];B[i]=d[p+2];} return {R,G,B};}
-function paintPlan(c,img){
+function paintPlan(c,img,co){
   const ctx=c.getContext('2d'), out=ctx.createImageData(T,T), o=new Uint32Array(out.data.buffer), N=T*T;
   if(!img){ctx.putImageData(out,0,0);return;}
   const {R,G,B}=rgbOf(img);
@@ -155,10 +166,12 @@ function paintPlan(c,img){
       if(g&31||g&128){ if(g&1)col=rd[0]; else if(g&2)col=rd[1]; else if(g&4)col=rd[2]; else if(g&128)col=rd[7]; else if(g&8)col=rd[3]; else if(g&16)col=rd[4]; }
       o[i]=col;}
   }
+  if(CZ&&co){ const m=czMask(co.x*T,co.y*T,T,T), bg=PK(H(PAL().nodata)), bgc=H(PAL().nodata);
+    for(let i=0;i<N;i++) if(!m[i]&&o[i]){ const v=o[i]; o[i]=PK(MX([v&255,(v>>8)&255,(v>>16)&255],bgc,.62)); } }
   ctx.putImageData(out,0,0);
 }
 const PlanTiles=L.GridLayer.extend({createTile(co,done){const c=document.createElement('canvas');c.width=c.height=T;
-  loadTile(co.x,co.y).then(img=>{try{paintPlan(c,img);}catch(e){} done(null,c);}); return c;}});
+  loadTile(co.x,co.y).then(img=>{try{paintPlan(c,img,co);}catch(e){} done(null,c);}); return c;}});
 const planLayer=new PlanTiles({tileSize:T,minNativeZoom:6,maxNativeZoom:6,minZoom:4,maxZoom:7,bounds:planBounds,noWrap:true,keepBuffer:0,updateWhenZooming:false,zIndex:5});
 const frame=L.rectangle(planBounds,{color:'#6d746f',weight:1.2,dashArray:'6 4',fill:false,interactive:false});
 const routeLayer=L.layerGroup(), pinLayer=L.layerGroup();
@@ -192,6 +205,7 @@ let busy=false;
 async function run(){
   if(busy) return;
   if(!S.from||!S.to){$('p-status').textContent='Vyberte start i cíl.';return;}
+  if(S.czOnly&&CZ&&(!inCZ(...S.from)||!inCZ(...S.to))){$('p-status').textContent=`${!inCZ(...S.from)?'Start':'Cíl'} leží mimo Česko. Vyberte bod v Česku, nebo vypněte „Jen po území Česka“.`;return;}
   busy=true; $('p-go').disabled=true; $('p-status').textContent='Načítám data oblasti…';
   const [fx,fy]=S.from,[tx,ty]=S.to, dist=Math.hypot(fx-tx,fy-ty), m=Math.max(150,0.25*dist);
   const x0=Math.max(PX0,Math.floor(Math.min(fx,tx)-m)), x1=Math.min(PX1,Math.ceil(Math.max(fx,tx)+m));
@@ -207,6 +221,7 @@ async function run(){
         R.set(d.R.subarray(so,so+n),dO); G.set(d.G.subarray(so,so+n),dO); B.set(d.B.subarray(so,so+n),dO);}
     }
   }catch(e){$('p-status').textContent='Data oblasti se nepodařilo načíst.';busy=false;$('p-go').disabled=false;return;}
+  if(S.czOnly&&CZ){ const m=czMask(x0,y0,w,h); for(let i=0;i<N;i++) if(!m[i]) R[i]=0; }
   $('p-status').textContent=`Hledám trasu v ${f1(N/1e6)} mil. buněk…`;
   const s=(Math.floor(fy)-y0)*w+(Math.floor(fx)-x0), t=(Math.floor(ty)-y0)*w+(Math.floor(tx)-x0);
   const P=params(); const t0=performance.now();
@@ -286,7 +301,7 @@ function switchMode(name){
   if(o.enter) o.enter();
   try{localStorage.setItem('pbs-tab',name)}catch(e){}
 }
-function base(on){ if(on){planLayer.addTo(map);frame.addTo(map);} else {map.removeLayer(planLayer);map.removeLayer(frame);} }
+function base(on){ if(on){planLayer.addTo(map);czLine.addTo(map);} else {map.removeLayer(planLayer);map.removeLayer(czLine);} }
 regMode('areas',{lede:LEDE0[0],eyebrow:LEDE0[1],enter(){PBS.hideAreas(false);},leave(){PBS.hideAreas(true);}});
 regMode('plan',{lede:'Naplánujte pěší trasu, která se drží co nejdál od lidí. Vyberte start a cíl, nastavte, čemu se vyhnout, a plánovač najde cestu přes lesy a mimo budovy i silnice.',eyebrow:'Česko a okolí · mřížka 100 m',
   enter(){base(true);routeLayer.addTo(map);pinLayer.addTo(map);
@@ -312,12 +327,14 @@ function coordSet(which){
   if(m.length<2||m.some(isNaN)){$('p-status').textContent='Zadejte souřadnice ve tvaru 49.82, 18.26 (šířka, délka).';return;}
   let [la,lo]=m; if(la<lo&&lo>40){[la,lo]=[lo,la];}
   const [x,y]=fromLonLat(lo,la);
-  if(!inPlan(x,y)){$('p-status').textContent='Bod leží mimo oblast plánovače (Česko a okolí).';return;}
+  if(!inPlan(x,y)||(S.czOnly&&!inCZ(x,y))){$('p-status').textContent='Bod leží mimo Česko.';return;}
   S[which]=[x,y]; S[which+'Name']='__custom'; syncPts(); map.panTo(ll6(x,y));
 }
 $('p-coord-from').onclick=()=>coordSet('from');
 $('p-coord-to').onclick=()=>coordSet('to');
 $('p-go').onclick=run;
+$('p-cz').checked=S.czOnly;
+$('p-cz').onchange=e=>{S.czOnly=e.target.checked;savePlan();$('p-status').textContent=S.czOnly?'Trasa povede jen po území Česka.':'Trasa může vést i přes sousední státy (do 100 km od hranic).';};
 $('pv-land').onclick=()=>{S.view='land';$('pv-land').setAttribute('aria-pressed','true');$('pv-cost').setAttribute('aria-pressed','false');legend();planLayer.redraw();};
 $('pv-cost').onclick=()=>{S.view='cost';$('pv-land').setAttribute('aria-pressed','false');$('pv-cost').setAttribute('aria-pressed','true');legend();planLayer.redraw();};
 // --- GPX download: the viewer's save dialog only takes allowlisted types, so the .gpx goes inside a .zip
@@ -361,7 +378,7 @@ async function readout(e,ro){
   pc.clearRect(0,0,1,1); pc.drawImage(img,Math.floor(x)%T,Math.floor(y)%T,1,1,0,0,1,1); const [r,g,b]=pc.getImageData(0,0,1,1).data;
   const P=params(); const one=buildCost(Uint8Array.of(r),Uint8Array.of(g),Uint8Array.of(b),1,P).cost[0];
   const rds=RNAMES.filter(([bit])=>g&bit).map(([,n])=>n);
-  ro.innerHTML=`<b>${GNAME[r&63]}</b>${r&64?' · most':''}<br><span class="k">Nejbližší budova:</span> ${r&128?'v této buňce':(b>=255?'víc než 2,5 km':'asi '+fmt(b*10)+' m')}`
+  ro.innerHTML=`<b>${GNAME[r&63]}</b>${r&64?' · most':''}${CZ&&!inCZ(x,y)?' · mimo Česko':''}<br><span class="k">Nejbližší budova:</span> ${r&128?'v této buňce':(b>=255?'víc než 2,5 km':'asi '+fmt(b*10)+' m')}`
     +(rds.length?`<br><span class="k">V buňce:</span> ${rds.join(', ')}`:'')
     +`<br><span class="k">Náročnost podle filtrů:</span> ${one===Infinity?'zakázáno':f1(one)}`;
   ro.hidden=false;
@@ -369,7 +386,7 @@ async function readout(e,ro){
 function click(e){
   if(!S.pick) return;
   const [x,y]=px6(e.latlng);
-  if(!inPlan(x,y)){$('p-status').textContent='Bod leží mimo oblast plánovače (Česko a okolí).';return;}
+  if(!inPlan(x,y)||(S.czOnly&&!inCZ(x,y))){$('p-status').textContent='Bod leží mimo Česko.';return;}
   S[S.pick]=[x,y]; S[S.pick+'Name']='__custom'; const w=S.pick; startPick(w); $('p-status').textContent=''; syncPts();
 }
 function setDest(x,y,label){S.to=[x,y];S.toName='__custom';S.route=null;routeLayer.clearLayers();$('p-result').hidden=true;syncPts();switchMode('plan');
