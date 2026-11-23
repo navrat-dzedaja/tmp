@@ -272,19 +272,26 @@ function legend(){
   }
 }
 
-// ---------- mode switching & events
-const LEDE={areas:[document.querySelector('.lede').textContent,document.querySelector('.eyebrow').lastChild.textContent],
-  plan:['Naplánujte pěší trasu, která se drží co nejdál od lidí. Vyberte start a cíl, nastavte, čemu se vyhnout, a plánovač najde cestu přes lesy a mimo budovy i silnice.','Česko a okolí · mřížka 100 m']};
-function setActive(on){
-  S.active=on; const ld=LEDE[on?'plan':'areas']; document.querySelector('.lede').textContent=ld[0]; document.querySelector('.eyebrow').lastChild.textContent=ld[1]; $('mode-plan').hidden=!on; $('mode-areas').hidden=on;
-  $('tab-areas').setAttribute('aria-selected',String(!on)); $('tab-plan').setAttribute('aria-selected',String(on));
-  if(on){ PBS.hideAreas(true); planLayer.addTo(map); frame.addTo(map); routeLayer.addTo(map); pinLayer.addTo(map);
-    if(!S.route) map.flyToBounds(L.latLngBounds(ll6(PL['Praha'][0]-300,PL['Ostrava'][1]+700),ll6(PL['Ostrava'][0]+300,PL['Praha'][1]-700)),{duration:.8}); }
-  else { PBS.hideAreas(false); map.removeLayer(planLayer); map.removeLayer(frame); map.removeLayer(routeLayer); map.removeLayer(pinLayer); }
-  try{localStorage.setItem('pbs-tab',on?'plan':'areas')}catch(e){}
+// ---------- modes: areas / plan / samoty
+const MODES={}; let curMode=null;
+const LEDE0=[document.querySelector('.lede').textContent,document.querySelector('.eyebrow').lastChild.textContent];
+function regMode(name,o){MODES[name]=o; const t=$('tab-'+name); if(t) t.onclick=()=>switchMode(name);}
+function switchMode(name){
+  if(!MODES[name]) name='areas';
+  if(curMode===name) return;
+  if(curMode&&MODES[curMode].leave) MODES[curMode].leave();
+  curMode=name; S.active=(name!=='areas');
+  for(const k in MODES){const p=$('mode-'+k), t=$('tab-'+k); if(p)p.hidden=k!==name; if(t)t.setAttribute('aria-selected',String(k===name));}
+  const o=MODES[name]; document.querySelector('.lede').textContent=o.lede; document.querySelector('.eyebrow').lastChild.textContent=o.eyebrow;
+  if(o.enter) o.enter();
+  try{localStorage.setItem('pbs-tab',name)}catch(e){}
 }
-$('tab-areas').onclick=()=>setActive(false);
-$('tab-plan').onclick=()=>setActive(true);
+function base(on){ if(on){planLayer.addTo(map);frame.addTo(map);} else {map.removeLayer(planLayer);map.removeLayer(frame);} }
+regMode('areas',{lede:LEDE0[0],eyebrow:LEDE0[1],enter(){PBS.hideAreas(false);},leave(){PBS.hideAreas(true);}});
+regMode('plan',{lede:'Naplánujte pěší trasu, která se drží co nejdál od lidí. Vyberte start a cíl, nastavte, čemu se vyhnout, a plánovač najde cestu přes lesy a mimo budovy i silnice.',eyebrow:'Česko a okolí · mřížka 100 m',
+  enter(){base(true);routeLayer.addTo(map);pinLayer.addTo(map);
+    if(!S.route) map.flyToBounds(L.latLngBounds(ll6(PL['Praha'][0]-300,PL['Ostrava'][1]+700),ll6(PL['Ostrava'][0]+300,PL['Praha'][1]-700)),{duration:.8});},
+  leave(){base(false);map.removeLayer(routeLayer);map.removeLayer(pinLayer);if(S.pick)startPick(S.pick);}});
 for(const k of ['hidden','balanced','short']) $('pr-'+k).onclick=()=>{applyProfile(k);filtersUI();savePlan();if(S.view==='cost')planLayer.redraw();};
 $('f-bR').oninput=e=>{S.bR=+e.target.value;changed();};
 $('f-bS').oninput=e=>{S.bS=+e.target.value;changed();};
@@ -365,12 +372,16 @@ function click(e){
   if(!inPlan(x,y)){$('p-status').textContent='Bod leží mimo oblast plánovače (Česko a okolí).';return;}
   S[S.pick]=[x,y]; S[S.pick+'Name']='__custom'; const w=S.pick; startPick(w); $('p-status').textContent=''; syncPts();
 }
-window.PLAN={get active(){return S.active;},readout,click,retheme(){buildLUT();legend();filtersUI();if(S.active)planLayer.redraw();}};
+function setDest(x,y,label){S.to=[x,y];S.toName='__custom';S.route=null;routeLayer.clearLayers();$('p-result').hidden=true;syncPts();switchMode('plan');
+  map.flyToBounds(L.latLngBounds(ll6(...S.to),S.from?ll6(...S.from):ll6(...S.to)).pad(.3),{duration:.8});$('p-status').textContent=label?`Cíl: ${label}. Vyberte start a stiskněte Najít trasu.`:'';}
+window.PLAN={get active(){return S.active;},readout,click,regMode,switchMode,base,ll6,px6,setDest,
+  get mode(){return curMode;},retheme(){buildLUT();legend();filtersUI();if(S.active)planLayer.redraw();if(MODES[curMode]&&MODES[curMode].retheme)MODES[curMode].retheme();}};
 
 syncPts(); filtersUI(); legend();
+window.PLAN_READY=true; window.dispatchEvent(new Event('plan-ready'));
 let tab='areas'; try{tab=localStorage.getItem('pbs-tab')||'areas';}catch(e){}
-if(location.hash==='#planovac') tab='plan';
-setActive(tab==='plan');
+if(location.hash==='#planovac') tab='plan'; if(location.hash==='#samoty') tab='samoty';
+switchMode(tab);
 }
 if(window.PBS) init(); else window.addEventListener('pbs-ready',init,{once:true});
 })();

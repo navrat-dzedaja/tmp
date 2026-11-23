@@ -1,0 +1,65 @@
+    <div id="mode-samoty" class="mode" hidden>
+      <section class="story" aria-labelledby="h-why">
+        <h3 id="h-why"><span class="blaze" aria-hidden="true"></span>Proč samota, a ne nový pozemek</h3>
+        <p>Stavební zákon v nezastavěném území dovoluje jen stavby pro zemědělství, lesnictví nebo vodní hospodářství, rodinný dům ne. Plochy pro bydlení proto obce vymezují u vesnic. Kilometr od lidí se tak dá reálně bydlet jen v existující samotě: domě s číslem popisným, který už je zastavěným územím a smí se opravit nebo přestavět.</p>
+      </section>
+
+      <section class="filters" aria-labelledby="h-sf">
+        <h2 id="h-sf">Co hledáte</h2>
+        <div class="frow sl"><label for="sf-iso">Nejbližší cizí dům aspoň</label><input type="range" id="sf-iso" min="500" max="3000" step="100" value="1000"><output id="so-iso"></output></div>
+        <div class="frow"><label for="sf-water">Voda</label><select id="sf-water">
+          <option value="any">nerozhoduje</option>
+          <option value="either">potok do 200 m nebo rybník do 300 m</option>
+          <option value="flow">potok nebo řeka do 200 m</option>
+          <option value="stand">rybník nebo jezero do 300 m</option>
+          <option value="pond">místo vhodné pro nový rybník</option>
+          <option value="spring">pramen do 300 m</option>
+        </select></div>
+        <div class="frow"><label for="sf-type">Druh stavby</label><select id="sf-type">
+          <option value="p">k bydlení (č.p.)</option>
+          <option value="all">i rekreační (č.ev.)</option>
+        </select></div>
+        <div class="frow"><label for="sf-n">Domů v samotě nejvýš</label><select id="sf-n">
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="6">až 6</option>
+        </select></div>
+        <div class="frow sl"><label for="sf-forest">Les do 500 m aspoň</label><input type="range" id="sf-forest" min="0" max="100" step="10" value="0"><output id="so-forest"></output></div>
+        <div class="frow sl"><label for="sf-bld">Budov bez adresy do 1 km nejvýš</label><input type="range" id="sf-bld" min="0" max="40" step="1" value="40"><output id="so-bld"></output></div>
+        <div class="frow sl"><label for="sf-major">Silnice I. a II. třídy dál než</label><input type="range" id="sf-major" min="0" max="5000" step="250" value="0"><output id="so-major"></output></div>
+        <div class="frow sl"><label for="sf-town">Do města nejvýš</label><input type="range" id="sf-town" min="5" max="40" step="1" value="40"><output id="so-town"></output></div>
+        <div class="frow"><label for="sf-road">Příjezd</label><select id="sf-road">
+          <option value="any">nerozhoduje</option>
+          <option value="road">silnice do 300 m</option>
+          <option value="noroad">bez silnice do 1 km</option>
+        </select></div>
+      </section>
+
+      <div class="listhead">
+        <h2 id="h-slist"><span id="s-count">…</span></h2>
+        <select id="s-sort" aria-label="Řazení">
+          <option value="iso">nejodlehlejší</option>
+          <option value="water">nejblíž vodě</option>
+          <option value="forest">nejvíc lesa</option>
+          <option value="town">nejblíž městu</option>
+        </select>
+      </div>
+
+      <section id="s-detail" class="story" hidden aria-live="polite"></section>
+      <ol class="list" id="s-list" aria-labelledby="h-slist"></ol>
+      <button type="button" class="chip" id="s-more" hidden>Zobrazit další</button>
+
+      <section aria-labelledby="h-sleg">
+        <h2 id="h-sleg">Legenda</h2>
+        <div class="legend" id="s-legend"></div>
+      </section>
+
+      <details>
+        <summary>Odkud jsou data</summary>
+        <ul>
+          <li><b>Domy:</b> všech 3 022 681 adresních míst z RÚIAN (ČÚZK, stav k 31. 10. 2026). Domy blíž než asi 150 m od sebe tvoří jednu samotu nebo osadu. Odstup se měří k nejbližší adrese mimo ni.</li>
+          <li><b>Voda:</b> potoky, řeky, rybníky, jezera a prameny z OpenStreetMap (Overture Maps). Meliorační příkopy, bazény a čistírny se nepočítají.</li>
+          <li><b>Místo pro rybník:</b> potok (ne příkop) do 300 m, spád potoka 0,3–5 % na úseku 400 m a dům aspoň 1,5 m nad hladinou potoka. Je to hrubý odhad z výškového modelu Copernicus (30 m). Rybník vždy potřebuje povolení vodoprávního úřadu.</li>
+          <li><b>Okolí:</b> les a louky podle CORINE 2018, budovy bez adresy (stodoly, chaty, posedy) z OpenStreetMap, silnice a cesty z OpenStreetMap.</li>
+          <li><b>Pozor:</b> samota nemusí být na prodej. Vlastníka zjistíte v katastru. Část samot jsou hájovny, horské boudy, myslivny nebo objekty národních parků, které se neprodávají.</li>
+        </ul>
+      </details>
+    </div>

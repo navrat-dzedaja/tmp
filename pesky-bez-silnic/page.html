@@ -108,7 +108,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:flex;flex-direction:column;
 .pin{font:700 11px/1 var(--body);background:var(--blaze);color:#fff;border:2px solid #fff;border-radius:999px;padding:3px 7px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)}
 .leaflet-tooltip{font:12px var(--body);background:var(--panel);color:var(--fg);border:1px solid var(--line)}
 @media (prefers-reduced-motion: reduce){.leaflet-zoom-anim .leaflet-zoom-animated{transition:none!important}}
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--soft)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--soft)}
 .tabs button{all:unset;cursor:pointer;text-align:center;padding:8px 6px;border-radius:7px;font:700 14px/1.1 var(--display);font-stretch:90%;color:var(--muted)}
 .tabs button[aria-selected="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .tabs button:focus-visible,.chip:focus-visible,.primary:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -151,6 +151,15 @@ details ul{padding-left:18px;margin:10px 0 0;display:flex;flex-direction:column;
 .gpxbtns{align-items:center;margin-bottom:4px}
 .gpx{display:flex;flex-direction:column;gap:6px}
 .gpx h2{margin:0}
+.nm>span{display:block}
+.nm>span.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-width:0}
+.tag{font-size:11px;line-height:1.5;padding:0 7px;border-radius:999px;background:var(--soft);color:var(--fg);border:1px solid var(--line);white-space:nowrap}
+.tag.w{background:color-mix(in srgb,#2f6fb5 16%,var(--panel))}
+.tag.p{background:color-mix(in srgb,#2e9d5b 20%,var(--panel))}
+.facts{margin:0;padding-left:18px;font-size:13.5px;display:flex;flex-direction:column;gap:3px}
+.sel{user-select:all;font-variant-numeric:tabular-nums;color:var(--fg)}
+#s-detail .row{gap:10px 14px}
+a.link{text-decoration:none}
 .ppin::after{content:"";position:absolute;left:50%;top:100%;width:2px;height:7px;background:#fff;transform:translateX(-50%)}
 </style>
 
@@ -164,6 +173,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:flex;flex-direction:column;
     <div class="tabs" role="tablist" aria-label="Režim">
       <button type="button" role="tab" id="tab-areas" aria-selected="true" aria-controls="mode-areas">Souvislé celky</button>
       <button type="button" role="tab" id="tab-plan" aria-selected="false" aria-controls="mode-plan">Plánovač trasy</button>
+      <button type="button" role="tab" id="tab-samoty" aria-selected="false" aria-controls="mode-samoty">Samoty</button>
     </div>
     <div id="mode-areas" class="mode">
 
@@ -229,6 +239,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:flex;flex-direction:column;
     </details>
     </div>
 /*PLANNERHTML*/
+/*SAMOTYHTML*/
   </aside>
 
   <main class="mapwrap">

@@ -23,3 +23,11 @@ Data: CORINE Land Cover 2018 © EEA/Copernicus · © přispěvatelé OpenStreetM
 11. `plan_tiles.py` – dlaždice `p/{x}_{y}.png`: R = třída CORINE | most | budova, G = bity silnic, B = vzdálenost k budově (×10 m).
 12. `route_core.js` – cenový povrch, A* (8 sousedů, bez řezání rohů), odstup od silnic, únikové okolí startu a cíle, statistiky.
 13. `planner.js`, `planner_html.html`, `laea.js` – UI plánovače, převod EPSG:3035 ↔ WGS84, export GPX. `build.py` skládá výslednou stránku.
+
+## Samoty (Česko, RÚIAN)
+
+14. `ruian_parse.py` – všechna adresní místa z RÚIAN (CSV ČÚZK, stav 31. 10. 2026).
+15. `samoty.py` – shlukování adres (~150 m, mřížka 50 m) a odstup každé osady od nejbližší cizí adresy.
+16. `water_fetch.py` – potoky, řeky, rybníky a prameny z Overture Maps (OSM) pro Česko.
+17. `samoty_feat.py` – vlastnosti samot: voda, okolní krajina, budovy bez adresy, silnice, vesnice a města, výška a odhad místa pro rybník z Copernicus DEM 30 m.
+18. `samoty.js`, `samoty_html.html` – záložka Samoty (filtry, seznam, detail s odkazy na Mapy.com a katastr).
